@@ -1,4 +1,4 @@
-use tch::{Tensor, nn, nn::Linear, Device};
+use tch::{Tensor, nn::{self, init::{NormalOrUniform, self, NonLinearity}, Init}, nn::Linear, Device};
 use crate::models::model_base::Model;
 
 
@@ -76,9 +76,11 @@ impl Critic {
         }
     }
 
-    // pub fn init(&mut self, init_func: nn::Init) {
-    //     self.critic.apply()
-    // }
+    pub fn init(&mut self, init_func: nn::Init) {
+        // TODO: figure out if there's a way to apply the init to a Sequential?
+        self.critic.ws.init(init_func);
+        if let Some(bs) = &mut self.critic.bs {*bs = bs.fill_(0.);}
+    }
 }
 
 impl Model for Critic {
