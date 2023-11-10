@@ -1,0 +1,35 @@
+Goals and features:
+pure Rust
+Fast
+Correct
+Play against old models
+built in evals
+wandb support
+external computers optional (Redis initially)
+faster local computer though
+Support for controllers for LR and others
+support for sgd, Adam, others?
+Support for schedulers for rewards
+GPU batching and CPU passes configurable per worker thread. GPU only batches latest model (and maybe one older or just update on the fly in an episode?), old models and evals are run on CPU.
+
+
+
+Design:
+Single process makes communication simpler
+but two processes (one learner and one worker) makes it possible to restart without disturbing learner. If wandb wasn't an issue this wouldn't matter maybe.
+Learner process?
+
+-learner thread: Responsible for as little of PPO as possible. Very minimal pre processing here.
+This process can remain running when things unrelated to it are changed. Updates redis with the new model.
+
+-pre processing thread: take data from the buffer and prepare it for PPO thread
+
+
+Working Process?
+-Batching thread: handles gathering data from all the workers and sending it to pre process. necessary?
+
+GPU batching thread: gathers obs and sends to GPU and sends actions back to workers
+
+worker threads: as many as desired, configurable.
+Gets latest model (and other models as needed) from redis and runs the gym to generate results and send them to the data buffer. Can be configured to run on GPU or CPU inference.
+
