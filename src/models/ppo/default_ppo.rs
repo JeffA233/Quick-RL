@@ -1,4 +1,4 @@
-use tch::{Tensor, nn::{self, init::{NormalOrUniform, self, NonLinearity}, Init}, nn::Linear, Device};
+use tch::{Tensor, nn::{self, init, LinearConfig}, nn::Linear, Device};
 use crate::models::model_base::Model;
 
 
@@ -11,9 +11,11 @@ pub struct Actor {
 }
 
 impl Actor {
-    pub fn new(p: &nn::Path, n_act: i64, n_in: i64, n_layers: usize, net_dim: i64) -> Self {
+    pub fn new(p: &nn::Path, n_act: i64, n_in: i64, n_layers: usize, net_dim: i64, config: Option<LinearConfig>) -> Self {
+        // default LinearConfig with kaiming
+        let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: None, bias: true });
         // define layer functions
-        let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, Default::default());
+        let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, lin_conf);
         let activation_func = |xs: &Tensor| xs.relu();
         // start building network
         let mut seq = nn::seq();
@@ -24,7 +26,7 @@ impl Actor {
             seq = seq.add(layer_func(net_dim, net_dim, layer_str));
             seq = seq.add_fn(move |xs| activation_func(xs));
         }
-        let actor = nn::linear(p / "alout", 256, n_act, Default::default());
+        let actor = nn::linear(p / "alout", 256, n_act, lin_conf);
         let device = p.device();
 
         Self {
@@ -52,9 +54,11 @@ pub struct Critic {
 }
 
 impl Critic {
-    pub fn new(p: &nn::Path, n_in: i64, n_layers: usize, net_dim: i64) -> Self {
+    pub fn new(p: &nn::Path, n_in: i64, n_layers: usize, net_dim: i64, config: Option<LinearConfig>) -> Self {
+        // default LinearConfig with kaiming
+        let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: None, bias: true });
         // define layer functions
-        let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, Default::default());
+        let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, lin_conf);
         let activation_func = |xs: &Tensor| xs.relu();
         // start building network
         let mut seq = nn::seq();
@@ -65,7 +69,7 @@ impl Critic {
             seq = seq.add(layer_func(net_dim, net_dim, layer_str));
             seq = seq.add_fn(move |xs| activation_func(xs));
         }
-        let critic = nn::linear(p / "clout", 256, 1, Default::default());
+        let critic = nn::linear(p / "clout", 256, 1, lin_conf);
         let device = p.device();
 
         Self {
@@ -76,11 +80,11 @@ impl Critic {
         }
     }
 
-    pub fn init(&mut self, init_func: nn::Init) {
-        // TODO: figure out if there's a way to apply the init to a Sequential?
-        self.critic.ws.init(init_func);
-        if let Some(bs) = &mut self.critic.bs {*bs = bs.fill_(0.);}
-    }
+    // NOTE: you can't init a sequential from tch so you should just init in the beginning
+    // pub fn init(&mut self, init_func: nn::Init) {
+    //     self.critic.ws.init(init_func);
+    //     if let Some(bs) = &mut self.critic.bs {*bs = bs.fill_(0.);}
+    // }
 }
 
 impl Model for Critic {
