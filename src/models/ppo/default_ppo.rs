@@ -1,10 +1,10 @@
-use tch::{Tensor, nn::{self, init, LinearConfig}, nn::Linear, Device, Shape};
-use crate::models::model_base::{Model, DiscreteActPPO};
+use tch::{Tensor, nn::{self, init, LinearConfig}, nn::Linear, Device};
+use crate::models::model_base::{Model, DiscreteActPPO, CriticPPO};
 
 
 pub struct Actor {
     seq: nn::Sequential,
-    actor: Linear,
+    // actor: Linear,
     device: Device,
     n_act: i64,
     n_in: i64,
@@ -26,12 +26,14 @@ impl Actor {
             seq = seq.add(layer_func(net_dim, net_dim, layer_str));
             seq = seq.add_fn(move |xs| activation_func(xs));
         }
-        let actor = nn::linear(p / "alout", 256, n_act, lin_conf);
+        // let actor = nn::linear(p / "alout", net_dim, n_act, lin_conf);
+        seq = seq.add(nn::linear(p / "alout", net_dim, n_act, lin_conf));
+        seq = seq.add_fn(move |xs| xs.softmax(-1, None));
         let device = p.device();
 
         Self {
             seq,
-            actor,
+            // actor,
             device,
             n_act,
             n_in,
@@ -39,11 +41,19 @@ impl Actor {
     }
 }
 
-impl DiscreteActPPO for Actor {
+impl Model for Actor {
     fn forward(&mut self, input: &Tensor) -> Tensor {
-        let ten = input.apply(&self.seq);
-        ten.apply(&self.actor)
+        // let ten = input.apply(&self.seq);
+        // ten.apply(&self.actor)
+        input.apply(&self.seq)
     }
+}
+
+impl DiscreteActPPO for Actor {
+    // fn forward(&mut self, input: &Tensor) -> Tensor {
+    //     let ten = input.apply(&self.seq);
+    //     ten.apply(&self.actor)
+    // }
 
     fn get_act_prob(&mut self, input: &Tensor, deterministic: bool) -> (Tensor, Tensor) {
         let mut probs = self.forward(input);
@@ -97,7 +107,7 @@ impl Critic {
             seq = seq.add(layer_func(net_dim, net_dim, layer_str));
             seq = seq.add_fn(move |xs| activation_func(xs));
         }
-        let critic = nn::linear(p / "clout", 256, 1, lin_conf);
+        let critic = nn::linear(p / "clout", net_dim, 1, lin_conf);
         let device = p.device();
 
         Self {
@@ -121,6 +131,8 @@ impl Model for Critic {
         ten.apply(&self.critic)
     }
 }
+
+impl CriticPPO for Critic {}
 
 // pub struct PPOPreProcess {
 
