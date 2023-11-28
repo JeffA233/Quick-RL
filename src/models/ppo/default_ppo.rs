@@ -86,7 +86,7 @@ impl DiscreteActPPO for Actor {
 
 pub struct Critic {
     seq: nn::Sequential,
-    critic: Linear,
+    // critic: Linear,
     device: Device,
     n_in: i64,
 }
@@ -107,12 +107,13 @@ impl Critic {
             seq = seq.add(layer_func(net_dim, net_dim, layer_str));
             seq = seq.add_fn(move |xs| activation_func(xs));
         }
-        let critic = nn::linear(p / "clout", net_dim, 1, lin_conf);
+        // let critic = nn::linear(p / "clout", net_dim, 1, lin_conf);
+        seq = seq.add(nn::linear(p / "clout", net_dim, 1, lin_conf));
         let device = p.device();
 
         Self {
             seq,
-            critic,
+            // critic,
             device,
             n_in,
         }
@@ -127,8 +128,9 @@ impl Critic {
 
 impl Model for Critic {
     fn forward(&mut self, input: &Tensor) -> Tensor {
-        let ten = input.apply(&self.seq);
-        ten.apply(&self.critic)
+        // let ten = input.apply(&self.seq);
+        // ten.apply(&self.critic)
+        input.apply(&self.seq)
     }
 }
 
