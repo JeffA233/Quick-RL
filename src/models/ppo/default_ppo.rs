@@ -1,5 +1,5 @@
-use tch::{Tensor, nn::{self, init, LinearConfig}, nn::Linear, Device};
-use crate::models::model_base::Model;
+use tch::{Tensor, nn::{self, init, LinearConfig}, nn::Linear, Device, Shape};
+use crate::models::model_base::{Model, DiscreteActPPO};
 
 
 pub struct Actor {
@@ -12,7 +12,7 @@ pub struct Actor {
 
 impl Actor {
     pub fn new(p: &nn::Path, n_act: i64, n_in: i64, n_layers: usize, net_dim: i64, config: Option<LinearConfig>) -> Self {
-        // default LinearConfig with kaiming
+        // default LinearConfig with kaiming, identical to calling LinearConfig::default() for now
         let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: None, bias: true });
         // define layer functions
         let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, lin_conf);
@@ -39,10 +39,38 @@ impl Actor {
     }
 }
 
-impl Model for Actor {
+impl DiscreteActPPO for Actor {
     fn forward(&mut self, input: &Tensor) -> Tensor {
         let ten = input.apply(&self.seq);
         ten.apply(&self.actor)
+    }
+
+    fn get_act_prob(&mut self, input: &Tensor, deterministic: bool) -> (Tensor, Tensor) {
+        let mut probs = self.forward(input);
+        probs = probs.view([-1, self.n_act]);
+        probs = probs.clamp(1e-11, 1.);
+
+        if deterministic {
+            return (probs.argmax(None, false), Tensor::from_slice(&[0.]))
+        }
+
+        let action = probs.multinomial(1, true);
+        let log_probs = probs.log().gather(-1, &action, false);
+
+        (action.flatten(0, -1), log_probs.flatten(0, -1))
+    }
+
+    fn get_prob_entr(&mut self, input: &Tensor, acts: &Tensor) -> (Tensor, Tensor) {
+        let acts = acts.internal_cast_long(true);
+        let mut probs = self.forward(input);
+        probs = probs.view([-1, self.n_act]);
+        probs = probs.clamp(1e-11, 1.);
+
+        let log_probs = probs.log();
+        let log_probs_act = log_probs.gather(-1, &acts, false);
+        let entropy = -(log_probs * probs).sum(None);
+
+        (log_probs_act, entropy.mean(None))
     }
 }
 
