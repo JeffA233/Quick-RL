@@ -1,4 +1,5 @@
 pub mod models;
+pub mod algorithms;
 
 fn main() {
     println!("Hello, world!");

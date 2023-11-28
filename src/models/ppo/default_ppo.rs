@@ -1,11 +1,11 @@
-use tch::{Tensor, nn::{self, init, LinearConfig}, nn::Linear, Device};
+use tch::{Tensor, nn::{self, init, LinearConfig}, Device};
 use crate::models::model_base::{Model, DiscreteActPPO, CriticPPO};
 
 
 pub struct Actor {
     seq: nn::Sequential,
     // actor: Linear,
-    device: Device,
+    pub device: Device,
     n_act: i64,
     n_in: i64,
 }
@@ -87,7 +87,7 @@ impl DiscreteActPPO for Actor {
 pub struct Critic {
     seq: nn::Sequential,
     // critic: Linear,
-    device: Device,
+    pub device: Device,
     n_in: i64,
 }
 
