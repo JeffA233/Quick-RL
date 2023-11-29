@@ -5,7 +5,7 @@ use crate::models::model_base::{Model, DiscreteActPPO, CriticPPO};
 pub struct Actor {
     seq: nn::Sequential,
     // actor: Linear,
-    pub device: Device,
+    device: Device,
     n_act: i64,
     n_in: i64,
 }
@@ -82,12 +82,20 @@ impl DiscreteActPPO for Actor {
 
         (log_probs_act, entropy.mean(None))
     }
+
+    fn get_device(&self) -> Device {
+        self.device
+    }
+
+    fn set_device(&mut self, dev: Device) {
+        self.device = dev;
+    }
 }
 
 pub struct Critic {
     seq: nn::Sequential,
     // critic: Linear,
-    pub device: Device,
+    device: Device,
     n_in: i64,
 }
 
@@ -134,7 +142,15 @@ impl Model for Critic {
     }
 }
 
-impl CriticPPO for Critic {}
+impl CriticPPO for Critic {
+    fn get_device(&self) -> Device {
+        self.device
+    }
+
+    fn set_device(&mut self, dev: Device) {
+        self.device = dev;
+    }
+}
 
 // pub struct PPOPreProcess {
 
