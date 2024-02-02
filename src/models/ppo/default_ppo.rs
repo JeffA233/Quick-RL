@@ -20,11 +20,11 @@ impl Actor {
         // start building network
         let mut seq = nn::seq();
         seq = seq.add(layer_func(n_in, net_dim, String::from("al0")));
-        seq = seq.add_fn(move |xs| activation_func(xs));
+        seq = seq.add_fn(activation_func);
         for i in 1..n_layers {
             let layer_str = String::from("al") + &i.to_string();
             seq = seq.add(layer_func(net_dim, net_dim, layer_str));
-            seq = seq.add_fn(move |xs| activation_func(xs));
+            seq = seq.add_fn(activation_func);
         }
         // let actor = nn::linear(p / "alout", net_dim, n_act, lin_conf);
         seq = seq.add(nn::linear(p / "alout", net_dim, n_act, lin_conf));
@@ -109,11 +109,11 @@ impl Critic {
         // start building network
         let mut seq = nn::seq();
         seq = seq.add(layer_func(n_in, net_dim, String::from("cl0")));
-        seq = seq.add_fn(move |xs| activation_func(xs));
+        seq = seq.add_fn(activation_func);
         for i in 1..n_layers {
             let layer_str = String::from("cl") + &i.to_string();
             seq = seq.add(layer_func(net_dim, net_dim, layer_str));
-            seq = seq.add_fn(move |xs| activation_func(xs));
+            seq = seq.add_fn(activation_func);
         }
         // let critic = nn::linear(p / "clout", net_dim, 1, lin_conf);
         seq = seq.add(nn::linear(p / "clout", net_dim, 1, lin_conf));

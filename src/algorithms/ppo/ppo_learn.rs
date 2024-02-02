@@ -1,7 +1,5 @@
 use crate::models::model_base::{DiscreteActPPO, CriticPPO};
 
-
-
 pub struct PPOLearner {
     policy: Box<dyn DiscreteActPPO>, 
     critic: Box<dyn CriticPPO>, 

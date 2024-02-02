@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 tch = {version="0.13.0"}
+redis = {version="0.24.0"}
+bytebuffer = {version="2.2.0"}
