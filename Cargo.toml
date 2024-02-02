@@ -6,6 +6,19 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# basic deps
 tch = {version="0.13.0"}
 redis = {version="0.24.0"}
 bytebuffer = {version="2.2.0"}
+
+# copied from tch-ppo
+indicatif = "0.17.7"
+rlgym_sim_gym = { git = "https://github.com/JeffA233/rlgym-sim-rs", package = "rlgym_sim_rs" }
+crossbeam-channel = { version = "0.5.8"}
+itertools = { version = "0.12.0"}
+rocketsim_rs = {version = "0.24.2"}
+serde_json = { version = "1.0.104"}
+rustc-hash = {version = "1.1.0"}
+fs2 = { version = "0.4.3"}
+zip = { version = "0.6.4"}
+rand = { version = "0.8.5", features=["small_rng"]}

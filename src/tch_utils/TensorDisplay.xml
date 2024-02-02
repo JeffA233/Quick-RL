@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="tch_ppo::utils::dbg_funcs::ten_display::TensorDisplay">
+      <!-- <DisplayString>({x},{y}) + ({dx}, {dy})</DisplayString> -->
+      <Expand>
+        <Synthetic Name="Size">
+          <DisplayString>{size}</DisplayString>
+        </Synthetic>
+        <Synthetic Name="Kind">
+          <DisplayString>{kind}</DisplayString>
+        </Synthetic>
+        <Synthetic Name="Max">
+          <DisplayString>{max}</DisplayString>
+        </Synthetic>
+        <Synthetic Name="Min">
+          <DisplayString>{min}</DisplayString>
+        </Synthetic>
+        <Synthetic Name="Device">
+          <DisplayString>{device}</DisplayString>
+        </Synthetic>
+      </Expand>
+    </Type>
+</AutoVisualizer>
