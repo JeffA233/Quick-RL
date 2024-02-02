@@ -11,7 +11,8 @@ pub struct Actor {
 }
 
 impl Actor {
-    pub fn new(p: &nn::Path, n_act: i64, n_in: i64, n_layers: usize, net_dim: i64, config: Option<LinearConfig>) -> Self {
+    pub fn new(p: &nn::Path, n_act: i64, n_in: i64, mut layers: Vec<i64>, config: Option<LinearConfig>) -> Self {
+        assert!(layers.len() > 2, "layer count must be at least 2 for actor");
         // default LinearConfig with kaiming, identical to calling LinearConfig::default() for now
         let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: None, bias: true });
         // define layer functions
@@ -19,15 +20,15 @@ impl Actor {
         let activation_func = |xs: &Tensor| xs.relu();
         // start building network
         let mut seq = nn::seq();
-        seq = seq.add(layer_func(n_in, net_dim, String::from("al0")));
+        seq = seq.add(layer_func(n_in, layers[0], String::from("al0")));
         seq = seq.add_fn(activation_func);
-        for i in 1..n_layers {
+        for i in 1..layers.len()-1 {
             let layer_str = String::from("al") + &i.to_string();
-            seq = seq.add(layer_func(net_dim, net_dim, layer_str));
+            seq = seq.add(layer_func(layers[i], layers[i+1], layer_str));
             seq = seq.add_fn(activation_func);
         }
         // let actor = nn::linear(p / "alout", net_dim, n_act, lin_conf);
-        seq = seq.add(nn::linear(p / "alout", net_dim, n_act, lin_conf));
+        seq = seq.add(nn::linear(p / "alout", layers.pop().unwrap(), n_act, lin_conf));
         seq = seq.add_fn(move |xs| xs.softmax(-1, None));
         let device = p.device();
 
@@ -87,9 +88,13 @@ impl DiscreteActPPO for Actor {
         self.device
     }
 
-    fn set_device(&mut self, dev: Device) {
-        self.device = dev;
+    fn get_n_in(&self) -> i64 {
+        self.n_in
     }
+
+    // fn set_device(&mut self, dev: Device) {
+    //     self.device = dev;
+    // }
 }
 
 pub struct Critic {
@@ -100,7 +105,9 @@ pub struct Critic {
 }
 
 impl Critic {
-    pub fn new(p: &nn::Path, n_in: i64, n_layers: usize, net_dim: i64, config: Option<LinearConfig>) -> Self {
+    pub fn new(p: &nn::Path, n_in: i64, mut layers: Vec<i64>, config: Option<LinearConfig>) -> Self {
+        assert!(layers.len() > 2, "layer count must be at least 2 for critic");
+        // let layer_iter = layers.iter();
         // default LinearConfig with kaiming
         let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: None, bias: true });
         // define layer functions
@@ -108,15 +115,15 @@ impl Critic {
         let activation_func = |xs: &Tensor| xs.relu();
         // start building network
         let mut seq = nn::seq();
-        seq = seq.add(layer_func(n_in, net_dim, String::from("cl0")));
+        seq = seq.add(layer_func(n_in, layers[0], String::from("cl0")));
         seq = seq.add_fn(activation_func);
-        for i in 1..n_layers {
+        for i in 1..layers.len()-1 {
             let layer_str = String::from("cl") + &i.to_string();
-            seq = seq.add(layer_func(net_dim, net_dim, layer_str));
+            seq = seq.add(layer_func(layers[i], layers[i+1], layer_str));
             seq = seq.add_fn(activation_func);
         }
         // let critic = nn::linear(p / "clout", net_dim, 1, lin_conf);
-        seq = seq.add(nn::linear(p / "clout", net_dim, 1, lin_conf));
+        seq = seq.add(nn::linear(p / "clout", layers.pop().unwrap(), 1, lin_conf));
         let device = p.device();
 
         Self {
@@ -145,6 +152,10 @@ impl Model for Critic {
 impl CriticPPO for Critic {
     fn get_device(&self) -> Device {
         self.device
+    }
+
+    fn get_n_in(&self) -> i64 {
+        self.n_in
     }
 
     fn set_device(&mut self, dev: Device) {

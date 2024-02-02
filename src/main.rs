@@ -229,8 +229,8 @@ pub fn main() {
 
     let vs = nn::VarStore::new(device);
     // let act_model = actor_model(&vs.root(), env.action_space(), obs_space);
-    let mut act_model = Actor::new(&vs.root(), env.action_space(), obs_space, 4, 256, None);
-    let mut critic_model = Critic::new(&vs.root(), obs_space, 4, 256, None);
+    let mut act_model = Actor::new(&vs.root(), env.action_space(), obs_space, vec![256; 4], None);
+    let mut critic_model = Critic::new(&vs.root(), obs_space, vec![256; 4], None);
     // let critic_model = critic_model(&vs.root(), obs_space);
     let mut opt = nn::Adam::default().build(&vs, lr).unwrap();
 
