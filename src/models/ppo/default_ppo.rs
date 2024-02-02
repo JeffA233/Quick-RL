@@ -1,4 +1,4 @@
-use tch::{Tensor, nn::{self, init, LinearConfig}, Device};
+use tch::{nn::{self, init, LinearConfig}, Device, Kind, Tensor};
 use crate::models::model_base::{Model, DiscreteActPPO, CriticPPO};
 
 
@@ -78,7 +78,7 @@ impl DiscreteActPPO for Actor {
 
         let log_probs = probs.log();
         let log_probs_act = log_probs.gather(-1, &acts, false);
-        let entropy = -(log_probs * probs).sum(None);
+        let entropy = -(log_probs * probs).sum_dim_intlist(-1, false, Kind::Float);
 
         (log_probs_act, entropy.mean(None))
     }

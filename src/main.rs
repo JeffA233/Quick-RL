@@ -23,7 +23,7 @@ use tch::{nn, nn::{
     // init
 }, Kind, Tensor, Device};
 
-use crate::tch_utils::dbg_funcs::{print_tensor_2df32, print_tensor_noval, print_tensor_vecf32};
+use crate::{models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic}}, tch_utils::dbg_funcs::{print_tensor_2df32, print_tensor_noval, print_tensor_vecf32}};
 
 // const ENV_NAME: &str = "SpaceInvadersNoFrameskip-v4";
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
@@ -42,7 +42,7 @@ const OPTIM_BATCHSIZE: i64 = BUFFERSIZE/1;
 const OPTIM_EPOCHS: i64 = 20;
 
 // type Model = Box<dyn Fn(&Tensor) -> (Tensor, Tensor)>;
-type ModelActCritic = Box<dyn Fn(&Tensor) -> Tensor>;
+// type ModelActCritic = Box<dyn Fn(&Tensor) -> Tensor>;
 
 // fn model(p: &nn::Path, nact: i64, n_in: i64) -> Model {
 //     // layer_config
@@ -71,57 +71,57 @@ type ModelActCritic = Box<dyn Fn(&Tensor) -> Tensor>;
 //     })
 // }
 
-fn actor_model(p: &nn::Path, nact: i64, n_in: i64) -> ModelActCritic {
-    // layer_config
-    let num_layers = 4;
-    let net_dim = 256;
-    // define layer functions
-    let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, Default::default());
-    let activation_func = |xs: &Tensor| xs.relu();
-    // start building network
-    let mut seq = nn::seq();
-    seq = seq.add(layer_func(n_in, net_dim, String::from("l0")));
-    seq = seq.add_fn(activation_func);
-    for i in 1..num_layers {
-        let layer_str = String::from("l") + &i.to_string();
-        seq = seq.add(layer_func(net_dim, net_dim, layer_str));
-        seq = seq.add_fn(activation_func);
-    }
-    let actor = nn::linear(p / "al", 256, nact, Default::default());
-    let device = p.device();
-    Box::new(move |xs: &Tensor| {
-        assert!(xs.device() == device, "Tensor in actor was on wrong device: {:#?}", xs.device());
-        // let xs = xs.to_device(device).apply(&seq);
-        let xs = xs.apply(&seq);
-        xs.apply(&actor)
-    })
-}
+// fn actor_model(p: &nn::Path, nact: i64, n_in: i64) -> ModelActCritic {
+//     // layer_config
+//     let num_layers = 4;
+//     let net_dim = 256;
+//     // define layer functions
+//     let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, Default::default());
+//     let activation_func = |xs: &Tensor| xs.relu();
+//     // start building network
+//     let mut seq = nn::seq();
+//     seq = seq.add(layer_func(n_in, net_dim, String::from("l0")));
+//     seq = seq.add_fn(activation_func);
+//     for i in 1..num_layers {
+//         let layer_str = String::from("l") + &i.to_string();
+//         seq = seq.add(layer_func(net_dim, net_dim, layer_str));
+//         seq = seq.add_fn(activation_func);
+//     }
+//     let actor = nn::linear(p / "al", 256, nact, Default::default());
+//     let device = p.device();
+//     Box::new(move |xs: &Tensor| {
+//         assert!(xs.device() == device, "Tensor in actor was on wrong device: {:#?}", xs.device());
+//         // let xs = xs.to_device(device).apply(&seq);
+//         let xs = xs.apply(&seq);
+//         xs.apply(&actor)
+//     })
+// }
 
-fn critic_model(p: &nn::Path, n_in: i64) -> ModelActCritic {
-    // layer_config
-    let num_layers = 4;
-    let net_dim = 256;
-    // define layer functions
-    let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, Default::default());
-    let activation_func = |xs: &Tensor| xs.relu();
-    // start building network
-    let mut seq = nn::seq();
-    seq = seq.add(layer_func(n_in, net_dim, String::from("l0")));
-    seq = seq.add_fn(activation_func);
-    for i in 1..num_layers {
-        let layer_str = String::from("l") + &i.to_string();
-        seq = seq.add(layer_func(net_dim, net_dim, layer_str));
-        seq = seq.add_fn(activation_func);
-    }
-    let critic = nn::linear(p / "cl", 256, 1, Default::default());
-    let device = p.device();
-    Box::new(move |xs: &Tensor| {
-        assert!(xs.device() == device, "Tensor in critic was on wrong device: {:#?}", xs.device());
-        // let xs = xs.to_device(device).apply(&seq);
-        let xs = xs.apply(&seq);
-        xs.apply(&critic)
-    })
-}
+// fn critic_model(p: &nn::Path, n_in: i64) -> ModelActCritic {
+//     // layer_config
+//     let num_layers = 4;
+//     let net_dim = 256;
+//     // define layer functions
+//     let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, Default::default());
+//     let activation_func = |xs: &Tensor| xs.relu();
+//     // start building network
+//     let mut seq = nn::seq();
+//     seq = seq.add(layer_func(n_in, net_dim, String::from("l0")));
+//     seq = seq.add_fn(activation_func);
+//     for i in 1..num_layers {
+//         let layer_str = String::from("l") + &i.to_string();
+//         seq = seq.add(layer_func(net_dim, net_dim, layer_str));
+//         seq = seq.add_fn(activation_func);
+//     }
+//     let critic = nn::linear(p / "cl", 256, 1, Default::default());
+//     let device = p.device();
+//     Box::new(move |xs: &Tensor| {
+//         assert!(xs.device() == device, "Tensor in critic was on wrong device: {:#?}", xs.device());
+//         // let xs = xs.to_device(device).apply(&seq);
+//         let xs = xs.apply(&seq);
+//         xs.apply(&critic)
+//     })
+// }
 
 // #[derive(Debug)]
 // struct FrameStack {
@@ -228,8 +228,10 @@ pub fn main() {
     println!("observation space: {:?}", obs_space);
 
     let vs = nn::VarStore::new(device);
-    let act_model = actor_model(&vs.root(), env.action_space(), obs_space);
-    let critic_model = critic_model(&vs.root(), obs_space);
+    // let act_model = actor_model(&vs.root(), env.action_space(), obs_space);
+    let mut act_model = Actor::new(&vs.root(), env.action_space(), obs_space, 4, 256, None);
+    let mut critic_model = Critic::new(&vs.root(), obs_space, 4, 256, None);
+    // let critic_model = critic_model(&vs.root(), obs_space);
     let mut opt = nn::Adam::default().build(&vs, lr).unwrap();
 
     let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
@@ -254,12 +256,12 @@ pub fn main() {
             total_prog_bar.inc(NPROCS as u64);
             prog_bar.inc(NPROCS as u64);
 
-            let actor = tch::no_grad(|| act_model(&s_states.get(s).to_device_(device, Kind::Float, true, false)));
-            let probs = actor.softmax(-1, Kind::Float).view((-1, env.action_space()));
+            let (actions, log_prob) = tch::no_grad(|| act_model.get_act_prob(&s_states.get(s).to_device_(device, Kind::Float, true, false), false));
+            // let probs = actor.softmax(-1, Kind::Float).view((-1, env.action_space()));
             // print_tensor_2df32("probs", &probs);
-            let actions = probs.clamp(1e-11, 1.).multinomial(1, true);
+            // let actions = probs.clamp(1e-11, 1.).multinomial(1, true);
             // gather is used here to line up the probability with the action being done
-            let log_prob = probs.log().gather(-1, &actions, false);
+            // let log_prob = probs.log().gather(-1, &actions, false);
             // print_tensor_2df32("acts", &actions);
             let actions_sqz = actions.squeeze().to_device_(Device::Cpu, Kind::Int64, true, false);
             // print_tensor_vecf32("acts flat", &actions_sqz);
@@ -290,7 +292,7 @@ pub fn main() {
 
         // compute gae
         let adv = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
-        let vals = tch::no_grad(|| critic_model(&states.to_device_(device, Kind::Float, true, false))).squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
+        let vals = tch::no_grad(|| critic_model.forward(&states.to_device_(device, Kind::Float, true, false))).squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
         // print_tensor_noval("vals from critic", &vals);
         let mut last_gae_lam = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
         for idx in (0..NSTEPS).rev() {
@@ -348,18 +350,19 @@ pub fn main() {
                 // print_tensor_vecf32("batch targ vals", &targ_vals);
                 let old_log_probs_batch = old_log_probs.index_select(0, &buffer_indexes).squeeze();
                 // print_tensor_vecf32("batch old log probs", &old_log_probs_batch);
-                let acts = act_model(&states);
-                let vals = critic_model(&states).squeeze();
+                // let acts = act_model(&states);
+                let (log_probs, dist_entropy) = act_model.get_prob_entr(&states, &actions);
+                let vals = critic_model.forward(&states).squeeze();
 
-                // print_tensor_vecf32("batch vals", &vals);
-                let probs = acts.softmax(-1, Kind::Float).view((-1, env.action_space()));
-                let log_probs = probs.clamp(1e-11, 1.).log();
+                // // print_tensor_vecf32("batch vals", &vals);
+                // let probs = acts.softmax(-1, Kind::Float).view((-1, env.action_space()));
+                // let log_probs = probs.clamp(1e-11, 1.).log();
                 let action_log_probs = {
                     log_probs.gather(-1, &actions.unsqueeze(-1), false).squeeze()
                 };
-                // print_tensor_vecf32("action log probs", &action_log_probs);
-                let dist_entropy =
-                    -(&log_probs * &probs).sum_dim_intlist(-1, false, Kind::Float).mean(Kind::Float);
+                // // print_tensor_vecf32("action log probs", &action_log_probs);
+                // let dist_entropy =
+                //     -(&log_probs * &probs).sum_dim_intlist(-1, false, Kind::Float).mean(Kind::Float);
                 let dist_entropy_float = tch::no_grad(|| {f32::try_from(&dist_entropy.detach()).unwrap()});
                 entropys.push(dist_entropy_float);
     
