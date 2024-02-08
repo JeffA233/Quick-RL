@@ -103,6 +103,7 @@ impl VecGymEnv {
         self.action_space
     }
 
+    /// space is of size [[nprocs, observation_size]]
     pub fn observation_space(&self) -> &[i64] {
         &self.observation_space
     }
