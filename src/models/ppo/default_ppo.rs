@@ -78,10 +78,10 @@ impl DiscreteActPPO for Actor {
         probs = probs.clamp(1e-11, 1.);
 
         let log_probs = probs.log();
-        let log_probs_act = log_probs.gather(-1, &acts.unsqueeze(-1), false);
-        let entropy = -(log_probs * probs).sum_dim_intlist(-1, false, Kind::Float);
+        let log_probs_act = log_probs.gather(-1, &acts.unsqueeze(-1), false).squeeze();
+        let entropy = -(log_probs * probs).sum_dim_intlist(-1, false, Kind::Float).mean(None);
 
-        (log_probs_act.squeeze(), entropy.mean(None))
+        (log_probs_act, entropy)
     }
 
     fn get_device(&self) -> Device {

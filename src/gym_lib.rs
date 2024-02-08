@@ -107,7 +107,7 @@ impl GymWrapper {
         let obs_build = Box::new(AdvancedObs::new());
         let obs_build_vec: Vec<Box<dyn ObsBuilder>> = vec![obs_build];
         let act_parse = Box::new(NectoAction::new());
-        let state_set = Box::new(custom_state_setters(team_size, seed));
+        let state_set = Box::new(custom_state_setters(team_size, Some(0)));
         let game_config = GameConfig {
             tick_skip, 
             team_size,
@@ -130,7 +130,7 @@ impl GymWrapper {
     }
 
     pub fn reset(&mut self, seed: Option<u64>) -> Vec<Vec<f32>> {
-        self.gym.reset(Some(false), seed)
+        self.gym.reset(Some(false), Some(0))
     }
 
     pub fn step(&mut self, actions: Vec<Vec<f32>>) -> (Vec<Vec<f32>>, Vec<f32>, bool, HashMap<String, f32>) {
@@ -160,7 +160,7 @@ impl GymWrapperRender {
         let obs_build = Box::new(AdvancedObs::new());
         let obs_build_vec: Vec<Box<dyn ObsBuilder>> = vec![obs_build];
         let act_parse = Box::new(NectoAction::new());
-        let state_set = Box::new(custom_state_setters(team_size, seed));
+        let state_set = Box::new(custom_state_setters(team_size, Some(0)));
         let game_config = GameConfig {
             gravity, 
             boost_consumption: boost,
@@ -243,7 +243,7 @@ impl GymWrapperRust {
         let obs_build_vec: Vec<Box<dyn ObsBuilder>> = vec![Box::new(AdvancedObs::new())];
         // let obs_build = Box::new(AdvancedObsPadderStacker::new(None, Some(5)));
         let act_parse = Box::new(NectoAction::new());
-        let state_set = Box::new(custom_state_setters(team_size, None));
+        let state_set = Box::new(custom_state_setters(team_size, Some(0)));
         let game_config = GameConfig {
             gravity, 
             boost_consumption: boost,
@@ -281,7 +281,7 @@ impl GymWrapperRust {
     }
 
     pub fn reset(&mut self) -> Vec<Vec<f32>> {
-        self.gym.reset(Some(false), None)
+        self.gym.reset(Some(false), Some(0))
     }
 
     pub fn step(&mut self, actions: Vec<Vec<f32>>) -> (Vec<Vec<f32>>, Vec<f32>, bool, HashMap<String, f32>) {
