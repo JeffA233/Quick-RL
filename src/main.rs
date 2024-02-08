@@ -259,7 +259,12 @@ pub fn main() {
         // -- 
         total_steps += NSTEPS * NPROCS;
         // print_tensor_noval("states", &s_states);  // size = [1025, 16, 107]
+        // print_tensor_noval("rewards", &s_rewards);
+        // print_tensor_noval("actions", &s_actions);
+        // print_tensor_noval("dones", &dones_f);
+        // print_tensor_noval("log_probs", &s_log_probs);
         let states = s_states.view([NSTEPS + 1, NPROCS, NSTACK, obs_space]);
+        // print_tensor_noval("states after view", &states);
 
         // compute gae
         let adv = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
@@ -322,15 +327,15 @@ pub fn main() {
                 let old_log_probs_batch = old_log_probs.index_select(0, &buffer_indexes).squeeze();
                 // print_tensor_vecf32("batch old log probs", &old_log_probs_batch);
                 // let acts = act_model(&states);
-                let (log_probs, dist_entropy) = act_model.get_prob_entr(&states, &actions);
+                let (action_log_probs, dist_entropy) = act_model.get_prob_entr(&states, &actions);
                 let vals = critic_model.forward(&states).squeeze();
 
                 // // print_tensor_vecf32("batch vals", &vals);
                 // let probs = acts.softmax(-1, Kind::Float).view((-1, env.action_space()));
                 // let log_probs = probs.clamp(1e-11, 1.).log();
-                let action_log_probs = {
-                    log_probs.gather(-1, &actions.unsqueeze(-1), false).squeeze()
-                };
+                // let action_log_probs = {
+                //     log_probs.gather(-1, &actions.unsqueeze(-1), false).squeeze()
+                // };
                 // // print_tensor_vecf32("action log probs", &action_log_probs);
                 // let dist_entropy =
                 //     -(&log_probs * &probs).sum_dim_intlist(-1, false, Kind::Float).mean(Kind::Float);
