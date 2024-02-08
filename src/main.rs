@@ -159,6 +159,8 @@ pub fn main() {
     // let device = Device::Cpu;
     let device = Device::cuda_if_available();
     let reward_file_name = "rewards_test".to_owned();
+    tch::manual_seed(0);
+    tch::Cuda::manual_seed_all(0);
 
     // configure number of agents and gamemodes
     let num_1s = (NPROCS/2) as usize;
