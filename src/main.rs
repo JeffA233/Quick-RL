@@ -23,7 +23,7 @@ use tch::{nn, nn::{
     // init
 }, Kind, Tensor, Device};
 
-use crate::{models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic}}, tch_utils::dbg_funcs::{print_tensor_2df32, print_tensor_noval, print_tensor_vecf32}};
+use crate::{algorithms::common_utils::gather_experience::ppo_gather::get_experience, models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic}}, tch_utils::dbg_funcs::{print_tensor_2df32, print_tensor_noval, print_tensor_vecf32}};
 
 // const ENV_NAME: &str = "SpaceInvadersNoFrameskip-v4";
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
@@ -239,52 +239,67 @@ pub fn main() {
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
 
-    let s_states = Tensor::zeros([NSTEPS + 1, NPROCS, obs_space], (Kind::Float, device));
+    // let s_states = Tensor::zeros([NSTEPS + 1, NPROCS, obs_space], (Kind::Float, device));
 
     let train_size = NSTEPS * NPROCS;
     for update_index in 0..UPDATES {
-        s_states.get(0).copy_(&s_states.get(-1));
-        let s_rewards = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
-        let s_actions = Tensor::zeros([NSTEPS, NPROCS], (Kind::Int64, Device::Cpu));
-        let dones_f = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
-        let s_log_probs = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
+        let (s_states, s_rewards, s_actions, dones_f, s_log_probs) = 
+            get_experience(
+                NSTEPS, 
+                NPROCS, 
+                obs_space, 
+                device, 
+                &multi_prog_bar_total, 
+                &total_prog_bar, 
+                prog_bar_func, 
+                &mut act_model, 
+                &mut env, 
+                &mut sum_rewards, 
+                &mut total_rewards, 
+                &mut total_episodes
+            );
+        // s_states.get(0).copy_(&s_states.get(-1));
+        // let s_rewards = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
+        // let s_actions = Tensor::zeros([NSTEPS, NPROCS], (Kind::Int64, Device::Cpu));
+        // let dones_f = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
+        // let s_log_probs = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
+        // // progress bar
+        // let prog_bar = multi_prog_bar_total.add(prog_bar_func((NSTEPS * NPROCS) as u64));
+        // prog_bar.set_message("getting rollouts");
+        // // --
+        // for s in 0..NSTEPS {
+        //     total_prog_bar.inc(NPROCS as u64);
+        //     prog_bar.inc(NPROCS as u64);
+
+        //     let (actions, log_prob) = tch::no_grad(|| act_model.get_act_prob(&s_states.get(s).to_device_(device, Kind::Float, true, false), false));
+        //     // let probs = actor.softmax(-1, Kind::Float).view((-1, env.action_space()));
+        //     // print_tensor_2df32("probs", &probs);
+        //     // let actions = probs.clamp(1e-11, 1.).multinomial(1, true);
+        //     // gather is used here to line up the probability with the action being done
+        //     // let log_prob = probs.log().gather(-1, &actions, false);
+        //     // print_tensor_2df32("acts", &actions);
+        //     let actions_sqz = actions.squeeze().to_device_(Device::Cpu, Kind::Int64, true, false);
+        //     // print_tensor_vecf32("acts flat", &actions_sqz);
+        //     // print_tensor_2df32("log probs", &log_prob);
+        //     let log_prob_flat = log_prob.squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
+        //     // print_tensor_vecf32("log prob flat", &log_prob_flat);
+        //     let step = env.step(Vec::<i64>::try_from(&actions_sqz).unwrap(), Device::Cpu);
+
+        //     sum_rewards += &step.reward;
+        //     total_rewards +=
+        //         f64::try_from((&sum_rewards * &step.is_done).sum(Kind::Float)).unwrap();
+        //     total_episodes += f64::try_from(step.is_done.sum(Kind::Float)).unwrap();
+
+        //     let masks = &step.is_done.to_kind(Kind::Float);
+        //     sum_rewards *= &step.is_done.bitwise_not();
+        //     s_actions.get(s).copy_(&actions_sqz);
+        //     s_states.get(s + 1).copy_(&step.obs);
+        //     s_rewards.get(s).copy_(&step.reward);
+        //     dones_f.get(s).copy_(masks);
+        //     s_log_probs.get(s).copy_(&log_prob_flat);
+        // }
         // progress bar
-        let prog_bar = multi_prog_bar_total.add(prog_bar_func((NSTEPS * NPROCS) as u64));
-        prog_bar.set_message("getting rollouts");
-        // --
-        for s in 0..NSTEPS {
-            total_prog_bar.inc(NPROCS as u64);
-            prog_bar.inc(NPROCS as u64);
-
-            let (actions, log_prob) = tch::no_grad(|| act_model.get_act_prob(&s_states.get(s).to_device_(device, Kind::Float, true, false), false));
-            // let probs = actor.softmax(-1, Kind::Float).view((-1, env.action_space()));
-            // print_tensor_2df32("probs", &probs);
-            // let actions = probs.clamp(1e-11, 1.).multinomial(1, true);
-            // gather is used here to line up the probability with the action being done
-            // let log_prob = probs.log().gather(-1, &actions, false);
-            // print_tensor_2df32("acts", &actions);
-            let actions_sqz = actions.squeeze().to_device_(Device::Cpu, Kind::Int64, true, false);
-            // print_tensor_vecf32("acts flat", &actions_sqz);
-            // print_tensor_2df32("log probs", &log_prob);
-            let log_prob_flat = log_prob.squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
-            // print_tensor_vecf32("log prob flat", &log_prob_flat);
-            let step = env.step(Vec::<i64>::try_from(&actions_sqz).unwrap(), Device::Cpu);
-
-            sum_rewards += &step.reward;
-            total_rewards +=
-                f64::try_from((&sum_rewards * &step.is_done).sum(Kind::Float)).unwrap();
-            total_episodes += f64::try_from(step.is_done.sum(Kind::Float)).unwrap();
-
-            let masks = &step.is_done.to_kind(Kind::Float);
-            sum_rewards *= &step.is_done.bitwise_not();
-            s_actions.get(s).copy_(&actions_sqz);
-            s_states.get(s + 1).copy_(&step.obs);
-            s_rewards.get(s).copy_(&step.reward);
-            dones_f.get(s).copy_(masks);
-            s_log_probs.get(s).copy_(&log_prob_flat);
-        }
-        // progress bar
-        prog_bar.finish_and_clear();
+        // prog_bar.finish_and_clear();
         // -- 
         total_steps += NSTEPS * NPROCS;
         // print_tensor_noval("states", &s_states);  // size = [1025, 16, 107]
