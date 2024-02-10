@@ -17,11 +17,7 @@ use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 // use tch::nn::init::{NonLinearity, NormalOrUniform};
 use vec_gym_env::VecGymEnv;
 // use tch::kind::{FLOAT_CPU, INT64_CPU};
-use tch::{nn, nn::{
-    OptimizerConfig, 
-    // Init, 
-    // init
-}, Kind, Tensor, Device};
+use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
 use crate::{algorithms::common_utils::gather_experience::ppo_gather::get_experience, models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic}}, tch_utils::dbg_funcs::{print_tensor_2df32, print_tensor_noval, print_tensor_vecf32}};
 
@@ -230,8 +226,8 @@ pub fn main() {
     println!("observation space: {:?}", obs_space);
 
     let vs = nn::VarStore::new(device);
-    let mut act_model = Actor::new(&vs.root(), env.action_space(), obs_space, vec![256; 4], None);
-    let mut critic_model = Critic::new(&vs.root(), obs_space, vec![256; 4], None);
+    let mut act_model = Actor::new(&vs.root(), env.action_space(), obs_space, vec![256; 3], Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true }));
+    let mut critic_model = Critic::new(&vs.root(), obs_space, vec![256; 3], Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true }));
     let mut opt = nn::Adam::default().build(&vs, lr).unwrap();
 
     let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));

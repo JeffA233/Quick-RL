@@ -12,9 +12,9 @@ pub struct Actor {
 
 impl Actor {
     pub fn new(p: &nn::Path, n_act: i64, n_in: i64, mut layers: Vec<i64>, config: Option<LinearConfig>) -> Self {
-        assert!(layers.len() > 2, "layer count must be at least 2 for actor");
+        assert!(layers.len() > 2, "layer count must be at least 3 for actor");
         // default LinearConfig with kaiming, identical to calling LinearConfig::default() for now
-        let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: None, bias: true });
+        let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: Some(init::Init::Const(0.)), bias: true });
         // define layer functions
         let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, lin_conf);
         let activation_func = |xs: &Tensor| xs.relu();
@@ -28,7 +28,8 @@ impl Actor {
             seq = seq.add_fn(activation_func);
         }
         // let actor = nn::linear(p / "alout", net_dim, n_act, lin_conf);
-        seq = seq.add(nn::linear(p / "alout", layers.pop().unwrap(), n_act, lin_conf));
+        // seq = seq.add(nn::linear(p / "alout", layers.pop().unwrap(), n_act, lin_conf));
+        seq = seq.add(nn::linear(p / "alout", layers.pop().unwrap(), n_act, LinearConfig { ws_init: init::Init::Orthogonal { gain: 0.01 }, bs_init: Some(init::Init::Const(0.)), bias: true }));
         seq = seq.add_fn(move |xs| xs.softmax(-1, None));
         let device = p.device();
 
@@ -78,10 +79,10 @@ impl DiscreteActPPO for Actor {
         probs = probs.clamp(1e-11, 1.);
 
         let log_probs = probs.log();
-        let log_probs_act = log_probs.gather(-1, &acts.unsqueeze(-1), false).squeeze();
-        let entropy = -(log_probs * probs).sum_dim_intlist(-1, false, Kind::Float).mean(None);
+        let log_probs_act = log_probs.gather(-1, &acts.unsqueeze(-1), false);
+        let entropy = -(log_probs * probs).sum_dim_intlist(-1, false, Kind::Float);
 
-        (log_probs_act, entropy)
+        (log_probs_act.squeeze(), entropy.mean(None))
     }
 
     fn get_device(&self) -> Device {
@@ -106,10 +107,10 @@ pub struct Critic {
 
 impl Critic {
     pub fn new(p: &nn::Path, n_in: i64, mut layers: Vec<i64>, config: Option<LinearConfig>) -> Self {
-        assert!(layers.len() > 2, "layer count must be at least 2 for critic");
+        assert!(layers.len() > 2, "layer count must be at least 3 for critic");
         // let layer_iter = layers.iter();
         // default LinearConfig with kaiming
-        let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: None, bias: true });
+        let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: Some(init::Init::Const(0.)), bias: true });
         // define layer functions
         let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, lin_conf);
         let activation_func = |xs: &Tensor| xs.relu();
@@ -123,7 +124,8 @@ impl Critic {
             seq = seq.add_fn(activation_func);
         }
         // let critic = nn::linear(p / "clout", net_dim, 1, lin_conf);
-        seq = seq.add(nn::linear(p / "clout", layers.pop().unwrap(), 1, lin_conf));
+        // seq = seq.add(nn::linear(p / "clout", layers.pop().unwrap(), 1, lin_conf));
+        seq = seq.add(nn::linear(p / "clout", layers.pop().unwrap(), 1, LinearConfig { ws_init: init::Init::Orthogonal { gain: 1. }, bs_init: Some(init::Init::Const(0.)), bias: true }));
         let device = p.device();
 
         Self {
