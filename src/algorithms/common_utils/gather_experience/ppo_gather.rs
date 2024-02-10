@@ -1,7 +1,10 @@
-use indicatif::{MultiProgress, ProgressBar};
-use tch::{Device, Kind, Tensor};
+use std::io::{BufReader, Cursor};
 
-use crate::{models::{model_base::DiscreteActPPO, ppo::default_ppo::Actor}, vec_gym_env::VecGymEnv};
+use bytebuffer::{ByteBuffer, ByteReader};
+use indicatif::{MultiProgress, ProgressBar};
+use tch::{nn, Device, Kind, Tensor};
+
+use crate::{models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::VecGymEnv};
 
 
 pub fn get_experience(
@@ -12,7 +15,9 @@ pub fn get_experience(
     multi_prog_bar_total: &MultiProgress, 
     total_prog_bar: &ProgressBar, 
     prog_bar_func: impl Fn(u64) -> ProgressBar,
-    act_model: &mut Actor,
+    // act_model: &mut Actor,
+    act_model_stream: Vec<u8>,
+    act_model_config: LayerConfig,
     env: &mut VecGymEnv,
     sum_rewards: &mut Tensor,
     total_rewards: &mut f64,
@@ -20,6 +25,7 @@ pub fn get_experience(
 ) -> (
     Tensor, Tensor, Tensor, Tensor, Tensor
 ) {
+    // setup tensors for storage
     let s_states = Tensor::zeros([nsteps + 1, nprocs, obs_space], (Kind::Float, device));
     s_states.get(0).copy_(&s_states.get(-1));
     let s_rewards = Tensor::zeros([nsteps, nprocs], (Kind::Float, Device::Cpu));
@@ -29,6 +35,11 @@ pub fn get_experience(
     // progress bar
     let prog_bar = multi_prog_bar_total.add(prog_bar_func((nsteps * nprocs) as u64));
     prog_bar.set_message("getting rollouts");
+    // take bytes from actor var store and load into new store (testing for networking later)
+    let mut p = nn::VarStore::new(device);
+    let mut act_model = Actor::new(&p.root(), act_model_config, None);
+    let stream = Cursor::new(act_model_stream);
+    p.load_from_stream(stream).unwrap();
     // --
     for s in 0..nsteps {
         total_prog_bar.inc(nprocs as u64);

@@ -2,8 +2,27 @@ use tch::{nn::{self, init, LinearConfig}, Device, Kind, Tensor};
 use crate::models::model_base::{Model, DiscreteActPPO, CriticPPO};
 
 
+#[derive(Clone)]
+pub struct LayerConfig {
+    layer_sizes: Vec<i64>,
+    n_in: i64,
+    n_out: Option<i64>,
+}
+
+impl LayerConfig {
+    pub fn new(layer_sizes: Vec<i64>, n_in: i64, n_out: Option<i64>) -> Self {
+        Self {
+            layer_sizes,
+            n_in,
+            n_out
+        }
+    }
+}
+
+
 pub struct Actor {
     seq: nn::Sequential,
+    layers_config: LayerConfig,
     // actor: Linear,
     device: Device,
     n_act: i64,
@@ -11,8 +30,8 @@ pub struct Actor {
 }
 
 impl Actor {
-    pub fn new(p: &nn::Path, n_act: i64, n_in: i64, mut layers: Vec<i64>, config: Option<LinearConfig>) -> Self {
-        assert!(layers.len() > 2, "layer count must be at least 3 for actor");
+    pub fn new(p: &nn::Path, layers_config: LayerConfig, config: Option<LinearConfig>) -> Self {
+        assert!(layers_config.layer_sizes.len() > 2, "layer count must be at least 3 for actor");
         // default LinearConfig with kaiming, identical to calling LinearConfig::default() for now
         let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: Some(init::Init::Const(0.)), bias: true });
         // define layer functions
@@ -20,25 +39,28 @@ impl Actor {
         let activation_func = |xs: &Tensor| xs.relu();
         // start building network
         let mut seq = nn::seq();
-        seq = seq.add(layer_func(n_in, layers[0], String::from("al0")));
+        seq = seq.add(layer_func(layers_config.n_in, layers_config.layer_sizes[0], String::from("al0")));
         seq = seq.add_fn(activation_func);
-        for i in 1..layers.len()-1 {
+        for i in 1..layers_config.layer_sizes.len()-1 {
             let layer_str = String::from("al") + &i.to_string();
-            seq = seq.add(layer_func(layers[i], layers[i+1], layer_str));
+            seq = seq.add(layer_func(layers_config.layer_sizes[i], layers_config.layer_sizes[i+1], layer_str));
             seq = seq.add_fn(activation_func);
         }
         // let actor = nn::linear(p / "alout", net_dim, n_act, lin_conf);
         // seq = seq.add(nn::linear(p / "alout", layers.pop().unwrap(), n_act, lin_conf));
-        seq = seq.add(nn::linear(p / "alout", layers.pop().unwrap(), n_act, LinearConfig { ws_init: init::Init::Orthogonal { gain: 0.01 }, bs_init: Some(init::Init::Const(0.)), bias: true }));
+        seq = seq.add(nn::linear(p / "alout", *layers_config.layer_sizes.last().unwrap(), layers_config.n_out.unwrap(), LinearConfig { ws_init: init::Init::Orthogonal { gain: 0.01 }, bs_init: Some(init::Init::Const(0.)), bias: true }));
         seq = seq.add_fn(move |xs| xs.softmax(-1, None));
         let device = p.device();
 
         Self {
             seq,
             // actor,
+            n_act: layers_config.n_out.unwrap(),
+            n_in: layers_config.n_in,
+            layers_config,
             device,
-            n_act,
-            n_in,
+            // n_act: layers_config.n_out.unwrap(),
+            // n_in: layers_config.n_in,
         }
     }
 }
@@ -93,6 +115,10 @@ impl DiscreteActPPO for Actor {
         self.n_in
     }
 
+    fn get_layer_config(&self) -> LayerConfig {
+        self.layers_config.clone()
+    }
+
     // fn set_device(&mut self, dev: Device) {
     //     self.device = dev;
     // }
@@ -101,13 +127,14 @@ impl DiscreteActPPO for Actor {
 pub struct Critic {
     seq: nn::Sequential,
     // critic: Linear,
+    layers_config: LayerConfig,
     device: Device,
     n_in: i64,
 }
 
 impl Critic {
-    pub fn new(p: &nn::Path, n_in: i64, mut layers: Vec<i64>, config: Option<LinearConfig>) -> Self {
-        assert!(layers.len() > 2, "layer count must be at least 3 for critic");
+    pub fn new(p: &nn::Path, layers_config: LayerConfig, config: Option<LinearConfig>) -> Self {
+        assert!(layers_config.layer_sizes.len() > 2, "layer count must be at least 3 for critic");
         // let layer_iter = layers.iter();
         // default LinearConfig with kaiming
         let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: Some(init::Init::Const(0.)), bias: true });
@@ -116,23 +143,25 @@ impl Critic {
         let activation_func = |xs: &Tensor| xs.relu();
         // start building network
         let mut seq = nn::seq();
-        seq = seq.add(layer_func(n_in, layers[0], String::from("cl0")));
+        seq = seq.add(layer_func(layers_config.n_in, layers_config.layer_sizes[0], String::from("cl0")));
         seq = seq.add_fn(activation_func);
-        for i in 1..layers.len()-1 {
+        for i in 1..layers_config.layer_sizes.len()-1 {
             let layer_str = String::from("cl") + &i.to_string();
-            seq = seq.add(layer_func(layers[i], layers[i+1], layer_str));
+            seq = seq.add(layer_func(layers_config.layer_sizes[i], layers_config.layer_sizes[i+1], layer_str));
             seq = seq.add_fn(activation_func);
         }
         // let critic = nn::linear(p / "clout", net_dim, 1, lin_conf);
         // seq = seq.add(nn::linear(p / "clout", layers.pop().unwrap(), 1, lin_conf));
-        seq = seq.add(nn::linear(p / "clout", layers.pop().unwrap(), 1, LinearConfig { ws_init: init::Init::Orthogonal { gain: 1. }, bs_init: Some(init::Init::Const(0.)), bias: true }));
+        seq = seq.add(nn::linear(p / "clout", *layers_config.layer_sizes.last().unwrap(), 1, LinearConfig { ws_init: init::Init::Orthogonal { gain: 1. }, bs_init: Some(init::Init::Const(0.)), bias: true }));
         let device = p.device();
 
         Self {
             seq,
             // critic,
+            n_in: layers_config.n_in,
+            layers_config,
             device,
-            n_in,
+            // n_in: layers_config.n_in,
         }
     }
 
@@ -162,6 +191,10 @@ impl CriticPPO for Critic {
 
     fn set_device(&mut self, dev: Device) {
         self.device = dev;
+    }
+
+    fn get_layer_config(&self) -> LayerConfig {
+        self.layers_config.clone()
     }
 }
 

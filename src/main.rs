@@ -13,13 +13,14 @@ mod vec_gym_env;
 pub mod gym_lib;
 pub mod gym_funcs;
 pub mod tch_utils;
+use bytebuffer::ByteBuffer;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 // use tch::nn::init::{NonLinearity, NormalOrUniform};
 use vec_gym_env::VecGymEnv;
 // use tch::kind::{FLOAT_CPU, INT64_CPU};
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
-use crate::{algorithms::common_utils::gather_experience::ppo_gather::get_experience, models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic}}, tch_utils::dbg_funcs::{print_tensor_2df32, print_tensor_noval, print_tensor_vecf32}};
+use crate::{algorithms::common_utils::gather_experience::ppo_gather::get_experience, models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, tch_utils::dbg_funcs::{print_tensor_2df32, print_tensor_noval, print_tensor_vecf32}};
 
 // const ENV_NAME: &str = "SpaceInvadersNoFrameskip-v4";
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
@@ -228,8 +229,11 @@ pub fn main() {
     // let vs = nn::VarStore::new(device);
     let vs_act = nn::VarStore::new(device);
     let vs_critic = nn::VarStore::new(device);
-    let mut act_model = Actor::new(&vs_act.root(), env.action_space(), obs_space, vec![256; 3], Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true }));
-    let mut critic_model = Critic::new(&vs_critic.root(), obs_space, vec![256; 3], Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true }));
+    let init_config = Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true });
+    let act_config = LayerConfig::new(vec![256; 3], obs_space, Some(env.action_space()));
+    let mut act_model = Actor::new(&vs_act.root(), act_config.clone(), init_config);
+    let critic_config = LayerConfig::new(vec![256; 3], obs_space, None);
+    let mut critic_model = Critic::new(&vs_critic.root(), critic_config, init_config);
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
@@ -240,6 +244,10 @@ pub fn main() {
 
     let train_size = NSTEPS * NPROCS;
     for update_index in 0..UPDATES {
+        let mut act_save_stream = ByteBuffer::new();
+        // TODO: consider parsing this result
+        vs_act.save_to_stream(&mut act_save_stream).unwrap();
+        let act_buffer = act_save_stream.into_vec();
         let (s_states, s_rewards, s_actions, dones_f, s_log_probs) = 
             get_experience(
                 NSTEPS, 
@@ -249,7 +257,9 @@ pub fn main() {
                 &multi_prog_bar_total, 
                 &total_prog_bar, 
                 prog_bar_func, 
-                &mut act_model, 
+                // &mut act_model, 
+                act_buffer,
+                act_config.clone(),
                 &mut env, 
                 &mut sum_rewards, 
                 &mut total_rewards, 
