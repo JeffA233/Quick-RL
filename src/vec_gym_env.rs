@@ -73,7 +73,7 @@ impl VecGymEnv {
         }
 
         self.env.step_async(actual_acts);
-        let (obs_vec, rews, dones, infos, term_obs) = self.env.step_wait();
+        let (obs_vec, rews, dones, _infos, _term_obs) = self.env.step_wait();
         // let dones_f32: Vec<f32> = dones.iter().map(|val| *val as usize as f32 ).collect();
         let (obs, reward, is_done) = if device == Device::Cpu {
             {

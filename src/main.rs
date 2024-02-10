@@ -20,7 +20,15 @@ use vec_gym_env::VecGymEnv;
 // use tch::kind::{FLOAT_CPU, INT64_CPU};
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
-use crate::{algorithms::common_utils::gather_experience::ppo_gather::get_experience, models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, tch_utils::dbg_funcs::{print_tensor_2df32, print_tensor_noval, print_tensor_vecf32}};
+use crate::{
+    algorithms::common_utils::gather_experience::ppo_gather::get_experience, 
+    models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
+    // tch_utils::dbg_funcs::{
+    //     print_tensor_2df32, 
+    //     print_tensor_noval, 
+    //     print_tensor_vecf32
+    // }
+};
 
 // const ENV_NAME: &str = "SpaceInvadersNoFrameskip-v4";
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
