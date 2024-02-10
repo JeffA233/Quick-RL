@@ -225,10 +225,13 @@ pub fn main() {
     let obs_space = env.observation_space()[1];
     println!("observation space: {:?}", obs_space);
 
-    let vs = nn::VarStore::new(device);
-    let mut act_model = Actor::new(&vs.root(), env.action_space(), obs_space, vec![256; 3], Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true }));
-    let mut critic_model = Critic::new(&vs.root(), obs_space, vec![256; 3], Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true }));
-    let mut opt = nn::Adam::default().build(&vs, lr).unwrap();
+    // let vs = nn::VarStore::new(device);
+    let vs_act = nn::VarStore::new(device);
+    let vs_critic = nn::VarStore::new(device);
+    let mut act_model = Actor::new(&vs_act.root(), env.action_space(), obs_space, vec![256; 3], Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true }));
+    let mut critic_model = Critic::new(&vs_critic.root(), obs_space, vec![256; 3], Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true }));
+    let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
+    let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
     let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
     let mut total_rewards = 0f64;
@@ -370,10 +373,15 @@ pub fn main() {
                 let action_loss = -((&ratio * &advs).min_other(&(&clip_ratio * &advs)).mean(Kind::Float));
                 let action_loss_float = f32::try_from(&action_loss.detach()).unwrap();
                 act_loss.push(action_loss_float);
-    
-                let loss = value_loss + action_loss - dist_entropy * entropy_coef;
+                
+                // only for stats purposes at this time
+                let loss = value_loss + &action_loss - &dist_entropy * entropy_coef;
+
+                let full_act_loss = action_loss - dist_entropy * entropy_coef;
                 losses.push(f32::try_from(&loss.detach()).unwrap());
-                opt.backward_step_clip_norm(&loss, grad_clip);
+                opt_act.backward_step_clip_norm(&full_act_loss, grad_clip);
+                opt_critic.backward_step_clip_norm(value_loss, grad_clip);
+                // opt.backward_step_clip_norm(&loss, grad_clip);
             }
         }
         prog_bar.finish_and_clear();
