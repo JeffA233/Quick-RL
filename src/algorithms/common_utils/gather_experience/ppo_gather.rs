@@ -40,7 +40,7 @@ pub fn get_experience(
     let mut act_model = Actor::new(&p.root(), act_model_config, None);
     let stream = Cursor::new(act_model_stream);
     p.load_from_stream(stream).unwrap();
-    // --
+    // start of experience gather loop
     for s in 0..nsteps {
         total_prog_bar.inc(nprocs as u64);
         prog_bar.inc(nprocs as u64);
@@ -65,6 +65,7 @@ pub fn get_experience(
         *total_episodes += f64::try_from(step.is_done.sum(Kind::Float)).unwrap();
 
         let masks = &step.is_done.to_kind(Kind::Float);
+        // we want to flip so that we multiply by 0 every time is_done is set to true
         *sum_rewards *= &step.is_done.bitwise_not();
         s_actions.get(s).copy_(&actions_sqz);
         s_states.get(s + 1).copy_(&step.obs);

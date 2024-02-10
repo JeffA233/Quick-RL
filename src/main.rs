@@ -226,7 +226,7 @@ pub fn main() {
     let obs_space = env.observation_space()[1];
     println!("observation space: {:?}", obs_space);
 
-    // let vs = nn::VarStore::new(device);
+    // setup actor and critic
     let vs_act = nn::VarStore::new(device);
     let vs_critic = nn::VarStore::new(device);
     let init_config = Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true });
@@ -237,12 +237,14 @@ pub fn main() {
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
+    // misc stats stuff
     let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
     let mut total_rewards = 0f64;
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
 
     let train_size = NSTEPS * NPROCS;
+    // start of learning loops
     for update_index in 0..UPDATES {
         let mut act_save_stream = ByteBuffer::new();
         // TODO: consider parsing this result
@@ -302,6 +304,7 @@ pub fn main() {
             adv.get(idx).copy_(&last_gae_lam);
             // print_tensor_f32("targ_val", &targ_val);
         }
+        // we now must do view on everything we want to batch
         let advantages = adv.view([train_size, 1]);
         let target_vals = (&advantages + vals.narrow(0, 0, NSTEPS).view([train_size, 1])).to_device_(device, Kind::Float, true, false);
 
@@ -312,15 +315,19 @@ pub fn main() {
         
         let actions = s_actions.view([train_size]).to_device_(device, Kind::Int64, true, false);
         let old_log_probs = s_log_probs.view([train_size]).to_device_(device, Kind::Float, true, false);
+
         let prog_bar = multi_prog_bar_total.add(prog_bar_func((OPTIM_EPOCHS) as u64));
         prog_bar.set_message("doing epochs");
+        // stats
         let mut clip_fracs = Vec::new();
         let mut kl_divs = Vec::new();
         let mut entropys = Vec::new();
         let mut losses = Vec::new();
         let mut act_loss = Vec::new();
         let mut val_loss = Vec::new();
+
         let optim_indexes = Tensor::randint(train_size, [OPTIM_EPOCHS, BUFFERSIZE], (Kind::Int64, device));
+        // learner epoch loop
         for epoch in 0..OPTIM_EPOCHS {
             prog_bar.inc(1);
             let batch_indexes = optim_indexes.get(epoch);
@@ -420,6 +427,7 @@ pub fn main() {
             total_episodes = 0.;
         }
         if update_index > 0 && update_index % 1000 == 0 {
+            // NOTE: the ValueStore doesn't seem to store the optimizer state (which seems to be bound to the optimizer itself)
             // if let Err(err) = vs.save(format!("trpo{update_index}.ot")) {
             //     println!("error while saving {err}")
             // }
