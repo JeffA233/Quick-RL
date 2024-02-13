@@ -1,6 +1,7 @@
-use std::io::Cursor;
+use std::{io::Cursor, time::Duration};
 
 use indicatif::{MultiProgress, ProgressBar};
+use redis::{Client, Commands};
 use tch::{nn, Device, Kind, Tensor};
 
 use crate::{models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::VecGymEnv};
@@ -15,7 +16,8 @@ pub fn get_experience(
     total_prog_bar: &ProgressBar, 
     prog_bar_func: impl Fn(u64) -> ProgressBar,
     // act_model: &mut Actor,
-    act_model_stream: Vec<u8>,
+    // act_model_stream: Vec<u8>,
+    redis_url: &str,
     act_model_config: LayerConfig,
     env: &mut VecGymEnv,
     sum_rewards: &mut Tensor,
@@ -37,6 +39,12 @@ pub fn get_experience(
     // take bytes from actor var store and load into new store (testing for networking later)
     let mut p = nn::VarStore::new(device);
     let mut act_model = Actor::new(&p.root(), act_model_config, None);
+
+    // get Redis connection
+    let redis_client = Client::open(redis_url).unwrap();
+    let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
+    let act_model_stream = redis_con.get::<&str, std::vec::Vec<u8>>("model_data").unwrap();
+
     let stream = Cursor::new(act_model_stream);
     p.load_from_stream(stream).unwrap();
     // start of experience gather loop

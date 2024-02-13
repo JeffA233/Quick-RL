@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 /* Proximal Policy Optimization (PPO) model.
 
    Proximal Policy Optimization Algorithms, Schulman et al. 2017
@@ -22,6 +24,10 @@ use quick_rl::{
     //     print_tensor_vecf32
     // }
     vec_gym_env::VecGymEnv,
+};
+
+use redis::{
+    Client, Commands,
 };
 
 // const ENV_NAME: &str = "SpaceInvadersNoFrameskip-v4";
@@ -222,11 +228,17 @@ pub fn main() {
     };
     let multi_prog_bar_total = MultiProgress::new();
     let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(UPDATES as u64));
-    // --- end of setup ---
+
+    // make env
     let mut env = VecGymEnv::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_name);
     println!("action space: {}", env.action_space());
     let obs_space = env.observation_space()[1];
     println!("observation space: {:?}", obs_space);
+
+    // get Redis connection
+    let redis_str = "redis://127.0.0.1/";
+    let redis_client = Client::open(redis_str).unwrap();
+    let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
 
     // setup actor and critic
     let vs_act = nn::VarStore::new(device);
@@ -252,6 +264,7 @@ pub fn main() {
         // TODO: consider parsing this result
         vs_act.save_to_stream(&mut act_save_stream).unwrap();
         let act_buffer = act_save_stream.into_vec();
+        redis_con.set::<&str, std::vec::Vec<u8>, ()>("model_data", act_buffer).unwrap();
         let (s_states, s_rewards, s_actions, dones_f, s_log_probs) = 
             get_experience(
                 NSTEPS, 
@@ -262,7 +275,8 @@ pub fn main() {
                 &total_prog_bar, 
                 prog_bar_func, 
                 // &mut act_model, 
-                act_buffer,
+                // act_buffer,
+                redis_str,
                 act_config.clone(),
                 &mut env, 
                 &mut sum_rewards, 
