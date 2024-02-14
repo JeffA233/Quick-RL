@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use tch::{nn::{self, init, LinearConfig}, Device, Kind, Tensor};
 use crate::models::model_base::{Model, DiscreteActPPO, CriticPPO};
 
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct LayerConfig {
     layer_sizes: Vec<i64>,
     n_in: i64,

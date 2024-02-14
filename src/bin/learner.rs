@@ -51,88 +51,6 @@ const BUFFERSIZE: i64 = NSTEPS*NPROCS;
 const OPTIM_BATCHSIZE: i64 = BUFFERSIZE/1;
 const OPTIM_EPOCHS: i64 = 20;
 
-// type Model = Box<dyn Fn(&Tensor) -> (Tensor, Tensor)>;
-// type ModelActCritic = Box<dyn Fn(&Tensor) -> Tensor>;
-
-// fn model(p: &nn::Path, nact: i64, n_in: i64) -> Model {
-//     // layer_config
-//     let num_layers = 4;
-//     let net_dim = 256;
-//     // define layer functions
-    // let layer_func = |in_dim: i64, out_dim: i64, layer_name: String| nn::linear(p / layer_name, in_dim, out_dim, Default::default());
-//     let activation_func = |xs: &Tensor| xs.relu();
-//     // let init_func = || nn::LinearConfig{ws_init: Kaiming{dist: Normal, fan: nn::init::FanInOut::FanIn, non_linearity: NonLinearity::ReLU},bs_init:Some(Kaiming{dist: Normal,fan: FanIn,non_linearity: ReLU}),bias:true};
-    // let init_config_func = || Init::Kaiming{dist: nn::init::NormalOrUniform::Normal, fan: init::FanInOut::FanIn, non_linearity: init::NonLinearity::ReLU};
-//     // start building network
-//     let seq = nn::seq();
-//     seq.add(layer_func(n_in, net_dim, String::from("l0")));
-//     seq.add_fn(|xs| activation_func(xs));
-//     for i in 1..num_layers {
-//         let layer_str = String::from("l") + &i.to_string();
-//         seq.add(layer_func(net_dim, net_dim, layer_str));
-//         seq.add_fn(|xs| activation_func(xs));
-//     }
-//     let critic = nn::linear(p / "cl", 256, 1, Default::default());
-//     let actor = nn::linear(p / "al", 256, nact, Default::default());
-//     let device = p.device();
-//     Box::new(move |xs: &Tensor| {
-//         let xs = xs.to_device(device).apply(&seq);
-//         (xs.apply(&critic), xs.apply(&actor))
-//     })
-// }
-
-// fn actor_model(p: &nn::Path, nact: i64, n_in: i64) -> ModelActCritic {
-//     // layer_config
-//     let num_layers = 4;
-//     let net_dim = 256;
-//     // define layer functions
-//     let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, Default::default());
-//     let activation_func = |xs: &Tensor| xs.relu();
-//     // start building network
-//     let mut seq = nn::seq();
-//     seq = seq.add(layer_func(n_in, net_dim, String::from("l0")));
-//     seq = seq.add_fn(activation_func);
-//     for i in 1..num_layers {
-//         let layer_str = String::from("l") + &i.to_string();
-//         seq = seq.add(layer_func(net_dim, net_dim, layer_str));
-//         seq = seq.add_fn(activation_func);
-//     }
-//     let actor = nn::linear(p / "al", 256, nact, Default::default());
-//     let device = p.device();
-//     Box::new(move |xs: &Tensor| {
-//         assert!(xs.device() == device, "Tensor in actor was on wrong device: {:#?}", xs.device());
-//         // let xs = xs.to_device(device).apply(&seq);
-//         let xs = xs.apply(&seq);
-//         xs.apply(&actor)
-//     })
-// }
-
-// fn critic_model(p: &nn::Path, n_in: i64) -> ModelActCritic {
-//     // layer_config
-//     let num_layers = 4;
-//     let net_dim = 256;
-//     // define layer functions
-//     let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, Default::default());
-//     let activation_func = |xs: &Tensor| xs.relu();
-//     // start building network
-//     let mut seq = nn::seq();
-//     seq = seq.add(layer_func(n_in, net_dim, String::from("l0")));
-//     seq = seq.add_fn(activation_func);
-//     for i in 1..num_layers {
-//         let layer_str = String::from("l") + &i.to_string();
-//         seq = seq.add(layer_func(net_dim, net_dim, layer_str));
-//         seq = seq.add_fn(activation_func);
-//     }
-//     let critic = nn::linear(p / "cl", 256, 1, Default::default());
-//     let device = p.device();
-//     Box::new(move |xs: &Tensor| {
-//         assert!(xs.device() == device, "Tensor in critic was on wrong device: {:#?}", xs.device());
-//         // let xs = xs.to_device(device).apply(&seq);
-//         let xs = xs.apply(&seq);
-//         xs.apply(&critic)
-//     })
-// }
-
 // #[derive(Debug)]
 // struct FrameStack {
 //     data: Tensor,
@@ -282,7 +200,7 @@ pub fn main() {
         get_experience(
             NSTEPS, 
             NPROCS, 
-            obs_space, 
+            // obs_space, 
             device, 
             &multi_prog_bar_total, 
             &total_prog_bar, 
@@ -304,16 +222,6 @@ pub fn main() {
         let flex_read = flexbuffers::Reader::get_root(exp_store.as_slice()).unwrap();
 
         let exp_store = ExperienceStore::deserialize(flex_read).unwrap();
-        // // let acts: Vec<Vec<f32>> = redis_con.lrange("acts", 0, -1).unwrap();
-        // let acts: Vec<Vec<f32>> = redis_con.get("acts").unwrap();
-        // // let states: Vec<Vec<Vec<f32>>> = redis_con.lrange("states", 0, -1).unwrap();
-        // let states: Vec<Vec<Vec<f32>>> = redis_con.get("states").unwrap();
-        // // let log_probs: Vec<Vec<f32>> = redis_con.lrange("log_probs", 0, -1).unwrap();
-        // let log_probs: Vec<Vec<f32>> = redis_con.get("log_probs").unwrap();
-        // // let rewards: Vec<Vec<f32>> = redis_con.lrange("rewards", 0, -1).unwrap();
-        // let rewards: Vec<Vec<f32>> = redis_con.get("rewards").unwrap();
-        // // let dones: Vec<Vec<f32>> = redis_con.lrange("dones", 0, -1).unwrap();
-        // let dones: Vec<Vec<f32>> = redis_con.get("dones").unwrap();
         // println!("states size was: {}", exp_store.s_states.len());
         // println!("states size 2 was: {}", exp_store.s_states[0].len());
         // println!("states size 3 was: {}", exp_store.s_states[0][0].len());
@@ -328,7 +236,6 @@ pub fn main() {
         // println!("states size was: {}", ten_vec.len());
         // println!("states size 2 was: {}", ten_vec[0].len());
         // println!("states size 3 was: {}", ten_vec[0][0].len());
-        // let s_actions = Tensor::from_slice2(&states);
         let s_log_probs = Tensor::from_slice2(&exp_store.s_log_probs);
         let s_rewards = Tensor::from_slice2(&exp_store.s_rewards);
         let dones_f = Tensor::from_slice2(&exp_store.dones_f);
@@ -406,19 +313,9 @@ pub fn main() {
                 // print_tensor_vecf32("batch targ vals", &targ_vals);
                 let old_log_probs_batch = old_log_probs.index_select(0, &buffer_indexes).squeeze();
                 // print_tensor_vecf32("batch old log probs", &old_log_probs_batch);
-                // let acts = act_model(&states);
                 let (action_log_probs, dist_entropy) = act_model.get_prob_entr(&states, &actions);
                 let vals = critic_model.forward(&states).squeeze();
-
                 // // print_tensor_vecf32("batch vals", &vals);
-                // let probs = acts.softmax(-1, Kind::Float).view((-1, env.action_space()));
-                // let log_probs = probs.clamp(1e-11, 1.).log();
-                // let action_log_probs = {
-                //     log_probs.gather(-1, &actions.unsqueeze(-1), false).squeeze()
-                // };
-                // // print_tensor_vecf32("action log probs", &action_log_probs);
-                // let dist_entropy =
-                //     -(&log_probs * &probs).sum_dim_intlist(-1, false, Kind::Float).mean(Kind::Float);
                 let dist_entropy_float = tch::no_grad(|| {f32::try_from(&dist_entropy.detach()).unwrap()});
                 entropys.push(dist_entropy_float);
     
@@ -462,7 +359,6 @@ pub fn main() {
                 losses.push(f32::try_from(&loss.detach()).unwrap());
                 opt_act.backward_step_clip_norm(&full_act_loss, grad_clip);
                 opt_critic.backward_step_clip_norm(value_loss, grad_clip);
-                // opt.backward_step_clip_norm(&loss, grad_clip);
             }
         }
         prog_bar.finish_and_clear();
