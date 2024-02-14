@@ -5,16 +5,7 @@ use redis::{Client, Commands};
 use serde::{Deserialize, Serialize};
 use tch::{nn, Device, Kind, Tensor};
 
-use crate::{models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::VecGymEnv};
-
-#[derive(Serialize, Deserialize)]
-pub struct ExperienceStore {
-    pub s_states: Vec<Vec<Vec<f32>>>,
-    pub s_rewards: Vec<Vec<f32>>,
-    pub s_actions: Vec<Vec<f32>>,
-    pub dones_f: Vec<Vec<f32>>,
-    pub s_log_probs: Vec<Vec<f32>>,
-}
+use crate::{algorithms::common_utils::rollout_buffer::rollout_buffer_utils::ExperienceStore, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::VecGymEnv};
 
 
 pub fn get_experience(

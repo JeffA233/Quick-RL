@@ -1,4 +1,5 @@
 use bytebuffer::ByteBuffer;
+use serde::{Deserialize, Serialize};
 use tch::{Tensor, TchError, nn::VarStore};
 
 
@@ -26,4 +27,13 @@ pub fn varstore_to_bytes(vs: &VarStore) -> Result<Vec<u8>, TchError> {
         Ok(_) => Ok(buffer.into_vec()),
         Err(e) => Err(e)
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ExperienceStore {
+    pub s_states: Vec<Vec<Vec<f32>>>,
+    pub s_rewards: Vec<Vec<f32>>,
+    pub s_actions: Vec<Vec<f32>>,
+    pub dones_f: Vec<Vec<f32>>,
+    pub s_log_probs: Vec<Vec<f32>>,
 }

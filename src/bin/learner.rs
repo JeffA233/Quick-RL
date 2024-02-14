@@ -21,7 +21,7 @@ use serde::{
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
 use quick_rl::{
-    algorithms::common_utils::gather_experience::ppo_gather::{get_experience, ExperienceStore}, 
+    algorithms::common_utils::{gather_experience::ppo_gather::get_experience, rollout_buffer::rollout_buffer_utils::ExperienceStore}, 
     models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
     // tch_utils::dbg_funcs::{
     //     print_tensor_2df32, 
