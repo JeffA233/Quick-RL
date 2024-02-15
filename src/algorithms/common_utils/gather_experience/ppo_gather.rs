@@ -5,7 +5,7 @@ use redis::{Client, Commands};
 use serde::{Deserialize, Serialize};
 use tch::{nn, Device, Kind, Tensor};
 
-use crate::{algorithms::common_utils::rollout_buffer::rollout_buffer_utils::ExperienceStore, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::VecGymEnv};
+use crate::{algorithms::common_utils::rollout_buffer::rollout_buffer_utils::ExperienceStoreProcs, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::VecGymEnv};
 
 
 pub fn get_experience(
@@ -96,7 +96,7 @@ pub fn get_experience(
     let dones_f = Vec::try_from(dones_f_ten).unwrap();
     let s_log_probs = Vec::try_from(s_log_probs_ten).unwrap();
 
-    let exp_store = ExperienceStore {s_states, s_rewards, s_actions, dones_f, s_log_probs};
+    let exp_store = ExperienceStoreProcs {s_states, s_rewards, s_actions, dones_f, s_log_probs};
     let mut s = flexbuffers::FlexbufferSerializer::new();
     exp_store.serialize(&mut s).unwrap();
     let view = s.view();

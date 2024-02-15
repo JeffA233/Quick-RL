@@ -30,10 +30,37 @@ pub fn varstore_to_bytes(vs: &VarStore) -> Result<Vec<u8>, TchError> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ExperienceStore {
+pub struct ExperienceStoreProcs {
     pub s_states: Vec<Vec<Vec<f32>>>,
     pub s_rewards: Vec<Vec<f32>>,
     pub s_actions: Vec<Vec<f32>>,
     pub dones_f: Vec<Vec<f32>>,
     pub s_log_probs: Vec<Vec<f32>>,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct ExperienceStore {
+    pub s_states: Vec<Vec<f32>>,
+    pub s_rewards: Vec<f32>,
+    pub s_actions: Vec<f32>,
+    pub dones_f: Vec<f32>,
+    pub s_log_probs: Vec<f32>,
+}
+
+// pub struct ExperienceStoreTen {
+//     pub s_states: Tensor,
+//     pub s_rewards: Tensor,
+//     pub s_actions: Tensor,
+//     pub dones_f: Tensor,
+//     pub s_log_probs: Tensor,
+// }
+
+// pub struct ExpAdvHolder {
+//     pub s_states: Vec<Vec<f32>>,
+//     pub s_rewards: Vec<f32>,
+//     pub s_actions: Vec<f32>,
+//     pub dones_f: Vec<f32>,
+//     pub s_log_probs: Vec<f32>,
+//     pub advs: Vec<f32>,
+//     pub targ_vals: Vec<f32>,
+// }

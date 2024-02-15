@@ -21,7 +21,7 @@ use serde::{
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
 use quick_rl::{
-    algorithms::common_utils::{gather_experience::ppo_gather::get_experience, rollout_buffer::rollout_buffer_utils::ExperienceStore}, 
+    algorithms::common_utils::{gather_experience::ppo_gather::get_experience, rollout_buffer::rollout_buffer_utils::ExperienceStoreProcs}, 
     models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
     // tch_utils::dbg_funcs::{
     //     print_tensor_2df32, 
@@ -221,7 +221,7 @@ pub fn main() {
         let exp_store = redis_con.get::<&str, Vec<u8>>("exp_store").unwrap();
         let flex_read = flexbuffers::Reader::get_root(exp_store.as_slice()).unwrap();
 
-        let exp_store = ExperienceStore::deserialize(flex_read).unwrap();
+        let exp_store = ExperienceStoreProcs::deserialize(flex_read).unwrap();
         // println!("states size was: {}", exp_store.s_states.len());
         // println!("states size 2 was: {}", exp_store.s_states[0].len());
         // println!("states size 3 was: {}", exp_store.s_states[0][0].len());
@@ -245,6 +245,7 @@ pub fn main() {
         // print_tensor_noval("actions", &s_actions);
         // print_tensor_noval("dones", &dones_f);
         // print_tensor_noval("log_probs", &s_log_probs);
+        // TODO: NSTACK is probably not required here?
         let states = s_states.view([NSTEPS + 1, NPROCS, NSTACK, obs_space]);
         // print_tensor_noval("states after view", &states);
 

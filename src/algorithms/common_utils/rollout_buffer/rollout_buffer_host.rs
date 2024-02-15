@@ -1,17 +1,10 @@
 use std::time::Duration;
 
-use redis::{Client, Connection};
+use redis::{Client, Commands, Connection};
+use serde::Deserialize;
 
+use super::rollout_buffer_utils::ExperienceStore;
 
-pub struct ExpAdvHolder {
-    pub s_states: Vec<Vec<f32>>,
-    pub s_rewards: Vec<f32>,
-    pub s_actions: Vec<f32>,
-    pub dones_f: Vec<f32>,
-    pub s_log_probs: Vec<f32>,
-    pub advs: Vec<f32>,
-    pub targ_vals: Vec<f32>,
-}
 
 pub struct RolloutBufferHost {
     // redis_url: String,
@@ -28,12 +21,26 @@ impl RolloutBufferHost {
         }
     }
 
-    pub fn get_experience(&mut self, num_steps: usize, ) -> ExpAdvHolder {
-        // TODO:
-        // - blpop until we reach num_steps
-        // - calculate GAE?
+    pub fn get_experience(&mut self, num_steps: usize, ) -> ExperienceStore {
+        let mut states = Vec::new();
+        let mut rewards = Vec::new();
+        let mut actions = Vec::new();
+        let mut dones = Vec::new();
+        let mut log_probs = Vec::new();
 
-        // ExpAdvHolder {  }
-        todo!()
+        while states.len() < num_steps {
+            let exp_store: Vec<u8> = self.redis_con.blpop("exp_store", 0.).unwrap();
+            let flex_read = flexbuffers::Reader::get_root(exp_store.as_slice()).unwrap();
+
+            let exp_store = ExperienceStore::deserialize(flex_read).unwrap();
+
+            states.extend(exp_store.s_states);
+            rewards.extend(exp_store.s_rewards);
+            actions.extend(exp_store.s_actions);
+            dones.extend(exp_store.dones_f);
+            log_probs.extend(exp_store.s_log_probs);
+        }
+
+        ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs }
     }
 }
