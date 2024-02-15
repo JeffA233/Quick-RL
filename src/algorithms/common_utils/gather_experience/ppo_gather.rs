@@ -5,7 +5,7 @@ use redis::{Client, Commands};
 use serde::{Deserialize, Serialize};
 use tch::{nn, Device, Kind, Tensor};
 
-use crate::{algorithms::common_utils::rollout_buffer::rollout_buffer_utils::ExperienceStoreProcs, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::VecGymEnv};
+use crate::{algorithms::common_utils::rollout_buffer::rollout_buffer_utils::ExperienceStoreProcs, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::{EnvConfig, VecGymEnv}};
 
 
 pub fn get_experience(
@@ -107,4 +107,38 @@ pub fn get_experience(
 
     // (s_states, s_rewards, s_actions, dones_f, s_log_probs)
     // s_states_ten
+}
+
+// TODO: convert function to struct so it can generate and hold the environment by itself,
+// also maybe look into dealing with the progress bar
+pub struct ExperienceGenerator {
+    nprocs: i64, 
+    // obs_space: i64, 
+    device: Device, 
+    // multi_prog_bar_total: &MultiProgress, 
+    // total_prog_bar: &ProgressBar, 
+    // prog_bar_func: impl Fn(u64) -> ProgressBar,
+    redis_url: String,
+    act_model_config: LayerConfig,
+    env: VecGymEnv,
+    sum_rewards: Tensor,
+    total_rewards: f64,
+    total_episodes: f64,
+}
+
+impl ExperienceGenerator {
+    // TODO: probably can calculate nprocs via the env_config
+    pub fn new(nprocs: i64, device: Device, redis_url: String, act_model_config: LayerConfig, env_config: EnvConfig) -> Self {
+        let env = VecGymEnv::new(env_config.match_nums, env_config.gravity_nums, env_config.boost_nums, env_config.self_plays, env_config.tick_skip, env_config.reward_file_name);
+        Self {
+            nprocs,
+            device,
+            redis_url,
+            act_model_config,
+            env,
+            sum_rewards: Tensor::zeros([nprocs], (Kind::Float, Device::Cpu)),
+            total_rewards: 0.,
+            total_episodes: 0.,
+        }
+    }
 }

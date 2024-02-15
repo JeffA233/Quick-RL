@@ -14,6 +14,16 @@ pub struct Step {
     pub is_done: Tensor,
 }
 
+#[derive(Debug)]
+pub struct EnvConfig {
+    pub match_nums: Vec<usize>, 
+    pub gravity_nums: Vec<f32>, 
+    pub boost_nums: Vec<f32>, 
+    pub self_plays: Vec<bool>, 
+    pub tick_skip: usize, 
+    pub reward_file_name: String,
+}
+
 pub struct VecGymEnv {
     // env: PyObject,
     env: GymManager,
