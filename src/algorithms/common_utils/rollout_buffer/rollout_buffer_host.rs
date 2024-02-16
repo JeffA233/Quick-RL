@@ -27,10 +27,15 @@ impl RolloutBufferHost {
         let mut actions = Vec::new();
         let mut dones = Vec::new();
         let mut log_probs = Vec::new();
+        let mut term_obs = Vec::new();
 
-        while states.len() < num_steps {
-            let exp_store: Vec<u8> = self.redis_con.blpop("exp_store", 0.).unwrap();
-            let flex_read = flexbuffers::Reader::get_root(exp_store.as_slice()).unwrap();
+        while rewards.len() < num_steps {
+            // blpop can get multiple keys so it will return the key-name followed by the actual data for each key input
+            let exp_store: Vec<Vec<u8>> = self.redis_con.blpop("exp_store", 0.).unwrap();
+            // let exp_store: Vec<u8> = self.redis_con.blpop("exp_store", 0.).unwrap();
+            // let exp_store_str: String = self.redis_con.blpop("exp_store", 0.).unwrap();
+            // let exp_store = exp_store_str.as_bytes();
+            let flex_read = flexbuffers::Reader::get_root(exp_store[1].as_slice()).unwrap();
 
             let exp_store = ExperienceStore::deserialize(flex_read).unwrap();
 
@@ -39,8 +44,10 @@ impl RolloutBufferHost {
             actions.extend(exp_store.s_actions);
             dones.extend(exp_store.dones_f);
             log_probs.extend(exp_store.s_log_probs);
+
+            term_obs = exp_store.terminal_obs;
         }
 
-        ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs }
+        ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs, terminal_obs: term_obs }
     }
 }

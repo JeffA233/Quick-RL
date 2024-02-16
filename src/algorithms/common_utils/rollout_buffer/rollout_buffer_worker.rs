@@ -89,7 +89,8 @@ impl RolloutBufferWorkerTen {
         let mut s = flexbuffers::FlexbufferSerializer::new();
         experience.serialize(&mut s).unwrap();
         let view = s.view();
+        // let view_dbg = view.to_vec();
         // rpush experience
-        self.redis_con.rpush::<&str, &[u8], ()>("exp_store", view).unwrap();
+        self.redis_con.rpush::<&str, Vec<u8>, ()>("exp_store", view.to_vec()).unwrap();
     }
 }

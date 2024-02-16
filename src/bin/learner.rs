@@ -10,18 +10,21 @@ use std::time::Duration;
 */
 use bytebuffer::ByteBuffer;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
-use serde::{
-    // de::IntoDeserializer, 
-    Deserialize, 
-    // Deserializer
-};
+// use serde::{
+//     // de::IntoDeserializer, 
+//     Deserialize, 
+//     // Deserializer
+// };
 // use tch::nn::init::{NonLinearity, NormalOrUniform};
 // use quick_rl::vec_gym_env::VecGymEnv;
 // use tch::kind::{FLOAT_CPU, INT64_CPU};
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
 use quick_rl::{
-    algorithms::common_utils::{gather_experience::ppo_gather::get_experience, rollout_buffer::rollout_buffer_utils::ExperienceStoreProcs}, 
+    algorithms::common_utils::{gather_experience::ppo_gather::get_experience, rollout_buffer::{
+        rollout_buffer_host::RolloutBufferHost, 
+        // rollout_buffer_utils::ExperienceStoreProcs
+    }}, 
     models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
     // tch_utils::dbg_funcs::{
     //     print_tensor_2df32, 
@@ -165,6 +168,8 @@ pub fn main() {
     let redis_client = Client::open(redis_str).unwrap();
     let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
 
+    let mut buffer_host = RolloutBufferHost::new(redis_str.to_owned());
+
     // setup actor and critic
     let vs_act = nn::VarStore::new(device);
     let vs_critic = nn::VarStore::new(device);
@@ -221,27 +226,36 @@ pub fn main() {
         // -- 
         total_steps += NSTEPS * NPROCS;
         // get redis
-        let exp_store = redis_con.get::<&str, Vec<u8>>("exp_store").unwrap();
-        let flex_read = flexbuffers::Reader::get_root(exp_store.as_slice()).unwrap();
+        // let exp_store = redis_con.get::<&str, Vec<u8>>("exp_store").unwrap();
+        // let flex_read = flexbuffers::Reader::get_root(exp_store.as_slice()).unwrap();
 
-        let exp_store = ExperienceStoreProcs::deserialize(flex_read).unwrap();
+        // let exp_store = ExperienceStoreProcs::deserialize(flex_read).unwrap();
+        let mut exp_store = buffer_host.get_experience(BUFFERSIZE as usize);
+        exp_store.s_states.push(exp_store.terminal_obs);
+        // truncate since get_experience returns full episodes for now
+        // exp_store.s_states.truncate((NSTEPS * NPROCS) as usize);
+        // exp_store.s_actions.truncate((NSTEPS * NPROCS) as usize);
+        // exp_store.s_rewards.truncate((NSTEPS * NPROCS) as usize);
+        // exp_store.dones_f.truncate((NSTEPS * NPROCS) as usize);
+        // exp_store.s_log_probs.truncate((NSTEPS * NPROCS) as usize);
         // println!("states size was: {}", exp_store.s_states.len());
         // println!("states size 2 was: {}", exp_store.s_states[0].len());
         // println!("states size 3 was: {}", exp_store.s_states[0][0].len());
         //
         // move to Tensor
-        let s_actions = Tensor::from_slice2(&exp_store.s_actions);
-        let s_states = Tensor::zeros([NSTEPS + 1, NPROCS, obs_space], (Kind::Float, device));
-        for (i, state) in exp_store.s_states.iter().enumerate() {
-            s_states.get(i as i64).copy_(&Tensor::from_slice2(state));
-        }
+        let s_actions = Tensor::from_slice(&exp_store.s_actions);
+        let s_states = Tensor::from_slice2(&exp_store.s_states);
+        // let s_states = Tensor::zeros([NSTEPS + 1, NPROCS, obs_space], (Kind::Float, device));
+        // for (i, state) in exp_store.s_states.iter().enumerate() {
+        //     s_states.get(i as i64).copy_(&Tensor::from_slice2(state));
+        // }
         // let ten_vec: Vec<Vec<Vec<f32>>> = Vec::try_from(&s_states).unwrap();
         // println!("states size was: {}", ten_vec.len());
         // println!("states size 2 was: {}", ten_vec[0].len());
         // println!("states size 3 was: {}", ten_vec[0][0].len());
-        let s_log_probs = Tensor::from_slice2(&exp_store.s_log_probs);
-        let s_rewards = Tensor::from_slice2(&exp_store.s_rewards);
-        let dones_f = Tensor::from_slice2(&exp_store.dones_f);
+        let s_log_probs = Tensor::from_slice(&exp_store.s_log_probs);
+        let s_rewards = Tensor::from_slice(&exp_store.s_rewards);
+        let dones_f = Tensor::from_slice(&exp_store.dones_f);
         //
         // print_tensor_noval("states", &s_states);  // size = [1025, 16, 107]
         // print_tensor_noval("rewards", &s_rewards);
@@ -249,16 +263,21 @@ pub fn main() {
         // print_tensor_noval("dones", &dones_f);
         // print_tensor_noval("log_probs", &s_log_probs);
         // TODO: NSTACK is probably not required here?
-        let states = s_states.view([NSTEPS + 1, NPROCS, NSTACK, obs_space]);
+        // let states = s_states.view([NSTEPS + 1, NPROCS, NSTACK, obs_space]);
+        // let states = s_states.view([NSTEPS * NPROCS, NSTACK, obs_space]);
+        let states = s_states;
+        let buf_size = s_rewards.size()[0];
         // print_tensor_noval("states after view", &states);
 
         // compute gae
-        let adv = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
+        // let adv = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
+        let adv = Tensor::zeros([buf_size], (Kind::Float, Device::Cpu));
         let vals = tch::no_grad(|| critic_model.forward(&states.to_device_(device, Kind::Float, true, false))).squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
         // print_tensor_noval("vals from critic", &vals);
-        let mut last_gae_lam = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
-        for idx in (0..NSTEPS).rev() {
-            let done = if idx == NSTEPS - 1 {
+        // let mut last_gae_lam = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
+        let mut last_gae_lam = Tensor::zeros([1], (Kind::Float, Device::Cpu));
+        for idx in (0..buf_size).rev() {
+            let done = if idx == buf_size - 1 {
                 1. - dones_f.get(idx)
             } else {
                 1. - dones_f.get(idx + 1)
@@ -276,20 +295,22 @@ pub fn main() {
             // print_tensor_f32("delta", &delta);
             last_gae_lam = delta + gamma * 0.95 * done * last_gae_lam;
             // print_tensor_f32("last_gae_lam", &last_gae_lam);
-            adv.get(idx).copy_(&last_gae_lam);
+            adv.get(idx).copy_(&last_gae_lam.squeeze());
             // print_tensor_f32("targ_val", &targ_val);
         }
+        // shrink everything to fit batch size
+        let advantages = adv.narrow(0, 0, NSTEPS * NPROCS).view([train_size, 1]);
         // we now must do view on everything we want to batch
-        let advantages = adv.view([train_size, 1]);
-        let target_vals = (&advantages + vals.narrow(0, 0, NSTEPS).view([train_size, 1])).to_device_(device, Kind::Float, true, false);
+        // let advantages = adv.view([train_size, 1]);
+        let target_vals = (&advantages + vals.narrow(0, 0, NSTEPS * NPROCS).view([train_size, 1])).to_device_(device, Kind::Float, true, false);
 
-        let learn_states = states.narrow(0, 0, NSTEPS).view([train_size, NSTACK, obs_space]).to_device_(device, Kind::Float, true, false);
+        let learn_states = states.narrow(0, 0, NSTEPS * NPROCS).view([train_size, NSTACK, obs_space]).to_device_(device, Kind::Float, true, false);
 
         // norm advantages
         let advantages = ((&advantages - &advantages.mean(Kind::Float)) / (&advantages.std(true) + 1e-8)).to_device_(device, Kind::Float, true, false);
         
-        let actions = s_actions.view([train_size]).to_device_(device, Kind::Int64, true, false);
-        let old_log_probs = s_log_probs.view([train_size]).to_device_(device, Kind::Float, true, false);
+        let actions = s_actions.narrow(0, 0, NSTEPS * NPROCS).view([train_size]).to_device_(device, Kind::Int64, true, false);
+        let old_log_probs = s_log_probs.narrow(0, 0, NSTEPS * NPROCS).view([train_size]).to_device_(device, Kind::Float, true, false);
 
         let prog_bar = multi_prog_bar_total.add(prog_bar_func((OPTIM_EPOCHS) as u64));
         prog_bar.set_message("doing epochs");

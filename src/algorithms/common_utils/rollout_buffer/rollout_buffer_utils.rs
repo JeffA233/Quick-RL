@@ -45,6 +45,7 @@ pub struct ExperienceStore {
     pub s_actions: Vec<f32>,
     pub dones_f: Vec<f32>,
     pub s_log_probs: Vec<f32>,
+    pub terminal_obs: Vec<f32>,
 }
 
 // pub struct ExperienceStoreTen {
