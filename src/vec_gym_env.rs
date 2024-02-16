@@ -6,12 +6,12 @@ use tch::{Device, Kind, Tensor};
 
 #[derive(Debug)]
 pub struct Step {
-    // pub obs: Vec<Vec<f32>>,
-    // pub reward: Vec<f32>,
-    // pub is_done: Vec<bool>,
-    pub obs: Tensor,
-    pub reward: Tensor,
-    pub is_done: Tensor,
+    pub obs: Vec<Vec<f32>>,
+    pub reward: Vec<f32>,
+    pub is_done: Vec<bool>,
+    // pub obs: Tensor,
+    // pub reward: Tensor,
+    // pub is_done: Tensor,
 }
 
 #[derive(Debug)]
@@ -88,24 +88,24 @@ impl VecGymEnv {
         self.env.step_async(actual_acts);
         let (obs, reward, is_done, _infos, _term_obs) = self.env.step_wait();
         // let dones_f32: Vec<f32> = dones.iter().map(|val| *val as usize as f32 ).collect();
-        let (obs, reward, is_done) = if device == Device::Cpu {
-            {
-                (
-                Tensor::from_slice2(&obs).view_(self.observation_space),
-                Tensor::from_slice(&reward),
-                Tensor::from_slice(&is_done)
-                )
-            }
-        } else {
-            {
-                (
-                    Tensor::from_slice2(&obs).view_(self.observation_space).to_device_(device, Kind::Float, true, false),
-                    Tensor::from_slice(&reward).to_device_(device, Kind::Float, true, false),
-                    Tensor::from_slice(&is_done).to_device_(device, Kind::Bool, true, false)
-                )
-            }
+        // let (obs, reward, is_done) = if device == Device::Cpu {
+        //     {
+        //         (
+        //         Tensor::from_slice2(&obs).view_(self.observation_space),
+        //         Tensor::from_slice(&reward),
+        //         Tensor::from_slice(&is_done)
+        //         )
+        //     }
+        // } else {
+        //     {
+        //         (
+        //             Tensor::from_slice2(&obs).view_(self.observation_space).to_device_(device, Kind::Float, true, false),
+        //             Tensor::from_slice(&reward).to_device_(device, Kind::Float, true, false),
+        //             Tensor::from_slice(&is_done).to_device_(device, Kind::Bool, true, false)
+        //         )
+        //     }
 
-        };
+        // };
         // let obs = Tensor::from_slice2(&obs_vec).view_(self.observation_space).pin_memory(Device::Cpu).to_device_(device, Kind::Float, true, false);
         // let reward = Tensor::from_slice(&rews).pin_memory(Device::Cpu).to_device_(device, Kind::Float, true, false);
         // let is_done = Tensor::from_slice(&dones).pin_memory(Device::Cpu).to_device_(device, Kind::Bool, true, false);

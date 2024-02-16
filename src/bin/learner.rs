@@ -77,6 +77,8 @@ const OPTIM_EPOCHS: i64 = 20;
 // }
 
 pub fn main() {
+    // NOTE:
+    // rough benchmark is ~4.26 for rew by idx 150
     // --- env setup stuff ---
     let tick_skip = 8;
     let entropy_coef = 0.01;
@@ -175,7 +177,8 @@ pub fn main() {
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
     // misc stats stuff
-    let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
+    // let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
+    let mut sum_rewards = vec![0.; NPROCS as usize];
     let mut total_rewards = 0f64;
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
