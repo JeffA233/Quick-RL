@@ -147,7 +147,7 @@ pub fn get_experience(
         // }
         for (i, done) in step.is_done.iter().enumerate() {
             if *done {
-                let mut new_state_vec = Vec::new();
+                // let mut new_state_vec = Vec::with_capacity(nsteps as usize);
                 // let mut proc_states: Vec<Vec<f32>> = s_states.iter().map(|val| val[i].clone()).collect();
                 // let proc_rewards: Vec<f32> = s_rewards.iter().map(|val| val[i]).collect();
                 // let proc_acts: Vec<f32> = s_actions.iter().map(|val| val[i]).collect();
@@ -169,21 +169,21 @@ pub fn get_experience(
                 // BUG incorrect indexing dimensions, is actually [nsteps, nprocs] and not [nprocs, nsteps]
                 // let last_state = s_states.last().unwrap().clone();
                 let last_state = s_states[i].pop().unwrap();
-                new_state_vec.push(last_state.clone());
+                // new_state_vec.push(last_state.clone());
                 assert!(s_states[i].len() == s_rewards[i].len(), "states length was not correct compared to rewards in exp gather func: {}, {}", s_states[i].len(), s_rewards[i].len());
                 // TODO: shouldn't need to clone here, feels dumb
-                rollout_bufs[i].submit_rollout(ExperienceStore { s_states: s_states[i].clone(), s_rewards: s_rewards[i].clone(), s_actions: s_actions[i].clone(), dones_f: dones_f[i].clone(), s_log_probs: s_log_probs[i].clone(), terminal_obs: last_state });
+                rollout_bufs[i].submit_rollout(ExperienceStore { s_states: s_states[i].clone(), s_rewards: s_rewards[i].clone(), s_actions: s_actions[i].clone(), dones_f: dones_f[i].clone(), s_log_probs: s_log_probs[i].clone(), terminal_obs: last_state.clone() });
                 // start new episodes
-                s_rewards[i] = Vec::new();
-                s_actions[i] = Vec::new();
-                dones_f[i] = Vec::new();
-                s_log_probs[i] = Vec::new();
-                // s_states[i] = Vec::new();
+                s_rewards[i].clear();
+                s_actions[i].clear();
+                dones_f[i].clear();
+                s_log_probs[i].clear();
+                s_states[i].clear();
 
                 // let mut new_state_vec = Vec::new();
                 // let last_state = s_states.last().unwrap().clone();
                 // new_state_vec.push(last_state);
-                s_states[i] = new_state_vec;
+                s_states[i].push(last_state);
 
                 if s > nsteps {
                     env_done_stores[i] = true;
