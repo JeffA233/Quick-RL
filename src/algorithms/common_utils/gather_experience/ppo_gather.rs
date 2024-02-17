@@ -1,5 +1,6 @@
-use std::{io::Cursor, time::Duration};
+use std::{io::Cursor, thread::{self, JoinHandle}, time::Duration};
 
+use crossbeam_channel::{bounded, Receiver, Sender};
 use indicatif::{MultiProgress, ProgressBar};
 use redis::{Client, Commands};
 // use serde::{Deserialize, Serialize};
@@ -7,6 +8,15 @@ use tch::{nn, Device, Kind, Tensor};
 
 use crate::{algorithms::common_utils::rollout_buffer::{rollout_buffer_utils::{ExperienceStore, ExperienceStoreProcs}, rollout_buffer_worker::RolloutBufferWorker}, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::{EnvConfig, VecGymEnv}};
 
+
+pub struct StepStore {
+    obs: Vec<Vec<f32>>,
+    action: Vec<f32>,
+    reward: Vec<f32>,
+    done: Vec<f32>,
+    log_prob: Vec<f32>,
+    // info: HashMap<String, f32>,
+}
 
 pub fn get_experience(
     nsteps: i64, 
@@ -61,10 +71,25 @@ pub fn get_experience(
     // get Redis connection
     let redis_client = Client::open(redis_url).unwrap();
     let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
-    let mut rollout_bufs = Vec::new();
-    for _i in 0..nprocs as usize {
-        rollout_bufs.push(RolloutBufferWorker::new(redis_url.to_owned(), obs_space, nsteps));
-    }
+
+    // original non-threaded buffers
+    // let mut rollout_bufs = Vec::new();
+    // for _i in 0..nprocs as usize {
+    //     rollout_bufs.push(RolloutBufferWorker::new(redis_url.to_owned(), obs_space, nsteps));
+    // }
+
+    // setup buffer threads
+    // let mut recv_vec = Vec::<Receiver<StepStore>>::new();
+    // let mut send_vec = Vec::<Sender<StepStore>>::new();
+    // let mut thrd_vec = Vec::<JoinHandle<()>>::new();
+
+    // for _i in 0..nprocs {
+        let (send_local, rx) = bounded(5000);
+        let worker_url = redis_url.to_owned();
+        let join_hand = thread::spawn(move || buffer_worker(rx, worker_url, obs_space, nsteps, nprocs as usize));
+        // thrd_vec.push(join_hand);
+        // send_vec.push(send_local);
+    // }
 
     let act_model_stream = redis_con.get::<&str, std::vec::Vec<u8>>("model_data").unwrap();
 
@@ -117,7 +142,8 @@ pub fn get_experience(
         }
 
         // s_states_ten.get(s + 1).copy_(&Tensor::from_slice2(&step.obs).view_(env_observation_spc.clone()).to_device_(Device::Cpu, Kind::Float, true, false),);
-        obs_store.copy_(&Tensor::from_slice2(&step.obs).view_([nprocs, obs_space]));
+        // obs_store.copy_(&Tensor::from_slice2(&step.obs).view_([nprocs, obs_space]));
+        obs_store = Tensor::from_slice2(&step.obs).to_device_(device, Kind::Float, true, false);
 
         // BUG: incorrect assumptions of dimensions
         // s_states.push(step.obs);
@@ -147,16 +173,21 @@ pub fn get_experience(
         // }
         let actions_vec = Vec::try_from(actions_sqz).unwrap();
         let log_probs_vec = Vec::try_from(log_prob_flat).unwrap();
-        for (proc_id, buf) in rollout_bufs.iter_mut().enumerate() {
-            let done_bool = buf.push_experience(step.obs[proc_id].clone(), step.reward[proc_id], actions_vec[proc_id], is_done_f[proc_id], log_probs_vec[proc_id]);
+        // replacement for loop underneath
+        step.is_done.iter().zip(env_done_stores.iter_mut()).map(|(done, store)| if s > nsteps && *done {*store = *done}).for_each(drop);
+        // for proc_id in 0..nprocs as usize {
+        //     let proc_done = step.is_done[proc_id];
+        //     // let done_bool = buf.push_experience(step.obs[proc_id].clone(), step.reward[proc_id], actions_vec[proc_id], is_done_f[proc_id], log_probs_vec[proc_id]);
 
-        if s > nsteps {
-            // we only want to set this when it is done otherwise it will also set to false
-            if done_bool {
-                env_done_stores[proc_id] = done_bool; 
-            }
-        }
-        }
+        //     if s > nsteps {
+        //         // we only want to set this when it is done otherwise it will also set to false
+        //         if proc_done {
+        //             env_done_stores[proc_id] = proc_done; 
+        //         }
+        //     }
+        // }
+
+        send_local.send(StepStore { obs: step.obs, action: actions_vec, reward: step.reward, done: is_done_f, log_prob: log_probs_vec }).unwrap();
         // for (i, done) in step.is_done.iter().enumerate() {
         //     if *done {
         //         // let mut new_state_vec = Vec::with_capacity(nsteps as usize);
@@ -226,6 +257,36 @@ pub fn get_experience(
 
     // (s_states, s_rewards, s_actions, dones_f, s_log_probs)
     // s_states_ten
+}
+
+fn buffer_worker(
+    rec_chan: Receiver<StepStore>,
+    redis_url: String,
+    obs_space: i64,
+    nsteps: i64,
+    nprocs: usize,
+) {
+    // let rollout_worker = RolloutBufferWorker::new(redis_url, obs_space, nsteps);
+    let mut rollout_bufs = Vec::new();
+    for _i in 0..nprocs {
+        rollout_bufs.push(RolloutBufferWorker::new(redis_url.to_owned(), obs_space, nsteps));
+    }
+
+    loop {
+        let recv_data = rec_chan.recv();
+        let step_store = match recv_data {
+            Ok(out) => out,
+            Err(err) => {
+                // NOTE: remove for now since we're just running the function aka the channel wil be disconnected anyways
+                // println!("recv err in experience buf worker: {err}");
+                break;
+            }
+        };
+        // rollout_worker.push_experience(step_store.obs, step_store.reward, step_store.action, step_store.done, step_store.log_prob);
+        for (i, buf) in rollout_bufs.iter_mut().enumerate() {
+            buf.push_experience(step_store.obs[i].clone(), step_store.reward[i], step_store.action[i], step_store.done[i], step_store.log_prob[i]);
+        }
+    }
 }
 
 // TODO: convert function to struct so it can generate and hold the environment by itself,
