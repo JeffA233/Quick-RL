@@ -15,6 +15,7 @@ pub struct StepStore {
     reward: Vec<f32>,
     done: Vec<f32>,
     log_prob: Vec<f32>,
+    model_ver: u64,
     // info: HashMap<String, f32>,
 }
 
@@ -92,6 +93,7 @@ pub fn get_experience(
     // }
 
     let act_model_stream = redis_con.get::<&str, std::vec::Vec<u8>>("model_data").unwrap();
+    let act_model_ver = redis_con.get::<&str, u64>("model_ver").unwrap();
 
     // load model bytes into VarStore (which then actually loads the parameters)
     let stream = Cursor::new(act_model_stream);
@@ -187,7 +189,7 @@ pub fn get_experience(
         //     }
         // }
 
-        send_local.send(StepStore { obs: step.obs, action: actions_vec, reward: step.reward, done: is_done_f, log_prob: log_probs_vec }).unwrap();
+        send_local.send(StepStore { obs: step.obs, action: actions_vec, reward: step.reward, done: is_done_f, log_prob: log_probs_vec, model_ver: act_model_ver }).unwrap();
         // for (i, done) in step.is_done.iter().enumerate() {
         //     if *done {
         //         // let mut new_state_vec = Vec::with_capacity(nsteps as usize);
@@ -284,7 +286,7 @@ fn buffer_worker(
         };
         // rollout_worker.push_experience(step_store.obs, step_store.reward, step_store.action, step_store.done, step_store.log_prob);
         for (i, buf) in rollout_bufs.iter_mut().enumerate() {
-            buf.push_experience(step_store.obs[i].clone(), step_store.reward[i], step_store.action[i], step_store.done[i], step_store.log_prob[i]);
+            buf.push_experience(step_store.obs[i].clone(), step_store.reward[i], step_store.action[i], step_store.done[i], step_store.log_prob[i], step_store.model_ver);
         }
     }
 }

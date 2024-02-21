@@ -181,6 +181,8 @@ pub fn main() {
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
+    redis_con.set::<&str, u64, ()>("model_ver", 0).unwrap();
+
     // misc stats stuff
     // let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
     let mut sum_rewards = vec![0.; NPROCS as usize];
@@ -195,16 +197,11 @@ pub fn main() {
         // TODO: consider parsing this result
         vs_act.save_to_stream(&mut act_save_stream).unwrap();
         let act_buffer = act_save_stream.into_vec();
+        redis_con.incr::<&str, u64, ()>("model_ver", 1).unwrap();
         redis_con.set::<&str, std::vec::Vec<u8>, ()>("model_data", act_buffer).unwrap();
         // clear redis
         redis_con.del::<&str, ()>("exp_store").unwrap();
-        // redis_con.del::<&str, ()>("acts").unwrap();
-        // redis_con.del::<&str, ()>("states").unwrap();
-        // redis_con.del::<&str, ()>("log_probs").unwrap();
-        // redis_con.del::<&str, ()>("rewards").unwrap();
-        // redis_con.del::<&str, ()>("dones").unwrap();
-        // let (s_states, s_rewards, s_actions, dones_f, s_log_probs) = 
-        // let ten_obs = 
+
         get_experience(
             NSTEPS, 
             NPROCS, 

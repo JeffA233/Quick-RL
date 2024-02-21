@@ -16,6 +16,7 @@ pub struct RolloutBufferWorker {
     actions: Vec<f32>,
     dones: Vec<f32>,
     log_probs: Vec<f32>,
+    model_version: u64,
 }
 
 impl RolloutBufferWorker {
@@ -32,11 +33,12 @@ impl RolloutBufferWorker {
             actions: Vec::with_capacity(nsteps as usize),
             dones: Vec::with_capacity(nsteps as usize),
             log_probs: Vec::with_capacity(nsteps as usize),
+            model_version: 0,
         }
     }
     
     /// note here that the state is actually the previous state t+0 from the gym and not the current one which is t+1
-    pub fn push_experience(&mut self, state: Vec<f32>, reward: f32, action: f32, done: f32, log_prob: f32) -> bool {
+    pub fn push_experience(&mut self, state: Vec<f32>, reward: f32, action: f32, done: f32, log_prob: f32, model_ver: u64) -> bool {
         self.states.push(state);
         // self.states.iter_mut().zip(state).map(|(vec, val)| vec.push(val)).for_each(drop);
         self.rewards.push(reward);
@@ -53,7 +55,15 @@ impl RolloutBufferWorker {
             // new_state_vec.push(last_state.clone());
             assert!(self.states.len() == self.rewards.len(), "states length was not correct compared to rewards in exp gather func: {}, {}", self.states.len(), self.rewards.len());
             // TODO: shouldn't need to clone here, feels dumb
-            self.submit_rollout(ExperienceStore { s_states: self.states.clone(), s_rewards: self.rewards.clone(), s_actions: self.actions.clone(), dones_f: self.dones.clone(), s_log_probs: self.log_probs.clone(), terminal_obs: last_state.clone() });
+            self.submit_rollout(ExperienceStore { 
+                s_states: self.states.clone(), 
+                s_rewards: self.rewards.clone(), 
+                s_actions: self.actions.clone(), 
+                dones_f: self.dones.clone(), 
+                s_log_probs: self.log_probs.clone(), 
+                terminal_obs: last_state.clone(), 
+                model_ver: self.model_version,
+            });
             // start new episodes
             self.rewards.clear();
             self.actions.clear();
@@ -69,6 +79,9 @@ impl RolloutBufferWorker {
             // if s > nsteps {
             //     env_done_stores[i] = true;
             // }
+
+            self.model_version = model_ver;
+
             return true
         }
         false
