@@ -39,7 +39,7 @@ impl RolloutBufferHost {
 
             let exp_store = ExperienceStore::deserialize(flex_read).unwrap();
 
-            if exp_store.model_ver < min_ver {
+            if exp_store.model_ver > min_ver {
                 states.extend(exp_store.s_states);
                 rewards.extend(exp_store.s_rewards);
                 actions.extend(exp_store.s_actions);
