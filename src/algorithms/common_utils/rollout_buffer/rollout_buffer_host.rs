@@ -21,7 +21,7 @@ impl RolloutBufferHost {
         }
     }
 
-    pub fn get_experience(&mut self, num_steps: usize, ) -> ExperienceStore {
+    pub fn get_experience(&mut self, num_steps: usize, min_ver: i64) -> ExperienceStore {
         let mut states = Vec::new();
         let mut rewards = Vec::new();
         let mut actions = Vec::new();
@@ -39,15 +39,17 @@ impl RolloutBufferHost {
 
             let exp_store = ExperienceStore::deserialize(flex_read).unwrap();
 
-            states.extend(exp_store.s_states);
-            rewards.extend(exp_store.s_rewards);
-            actions.extend(exp_store.s_actions);
-            dones.extend(exp_store.dones_f);
-            log_probs.extend(exp_store.s_log_probs);
-
-            term_obs = exp_store.terminal_obs;
+            if exp_store.model_ver < min_ver {
+                states.extend(exp_store.s_states);
+                rewards.extend(exp_store.s_rewards);
+                actions.extend(exp_store.s_actions);
+                dones.extend(exp_store.dones_f);
+                log_probs.extend(exp_store.s_log_probs);
+    
+                term_obs = exp_store.terminal_obs;
+            }
         }
 
-        ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs, terminal_obs: term_obs }
+        ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs, terminal_obs: term_obs, model_ver: 0, }
     }
 }

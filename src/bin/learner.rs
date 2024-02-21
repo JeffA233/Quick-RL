@@ -95,6 +95,8 @@ pub fn main() {
     tch::manual_seed(0);
     tch::Cuda::manual_seed_all(0);
 
+    let min_model_ver = -2;
+
     // configure number of agents and gamemodes
     let num_1s = (NPROCS/2) as usize;
     let num_1s_gravboost = 0;
@@ -181,7 +183,8 @@ pub fn main() {
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
-    redis_con.set::<&str, u64, ()>("model_ver", 0).unwrap();
+    redis_con.set::<&str, i64, ()>("model_ver", 0).unwrap();
+    let mut model_ver: i64 = 0;
 
     // misc stats stuff
     // let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
@@ -197,7 +200,10 @@ pub fn main() {
         // TODO: consider parsing this result
         vs_act.save_to_stream(&mut act_save_stream).unwrap();
         let act_buffer = act_save_stream.into_vec();
-        redis_con.incr::<&str, u64, ()>("model_ver", 1).unwrap();
+
+        redis_con.incr::<&str, i64, ()>("model_ver", 1).unwrap();
+        model_ver += 1;
+
         redis_con.set::<&str, std::vec::Vec<u8>, ()>("model_data", act_buffer).unwrap();
         // clear redis
         redis_con.del::<&str, ()>("exp_store").unwrap();
@@ -227,7 +233,7 @@ pub fn main() {
         // let flex_read = flexbuffers::Reader::get_root(exp_store.as_slice()).unwrap();
 
         // let exp_store = ExperienceStoreProcs::deserialize(flex_read).unwrap();
-        let mut exp_store = buffer_host.get_experience(BUFFERSIZE as usize);
+        let mut exp_store = buffer_host.get_experience(BUFFERSIZE as usize, model_ver-min_model_ver);
         exp_store.s_states.push(exp_store.terminal_obs);
         // truncate since get_experience returns full episodes for now
         // exp_store.s_states.truncate((NSTEPS * NPROCS) as usize);

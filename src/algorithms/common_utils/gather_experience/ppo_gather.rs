@@ -15,7 +15,7 @@ pub struct StepStore {
     reward: Vec<f32>,
     done: Vec<f32>,
     log_prob: Vec<f32>,
-    model_ver: u64,
+    model_ver: i64,
     // info: HashMap<String, f32>,
 }
 
@@ -93,7 +93,7 @@ pub fn get_experience(
     // }
 
     let act_model_stream = redis_con.get::<&str, std::vec::Vec<u8>>("model_data").unwrap();
-    let act_model_ver = redis_con.get::<&str, u64>("model_ver").unwrap();
+    let act_model_ver = redis_con.get::<&str, i64>("model_ver").unwrap();
 
     // load model bytes into VarStore (which then actually loads the parameters)
     let stream = Cursor::new(act_model_stream);

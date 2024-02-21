@@ -16,7 +16,7 @@ pub struct RolloutBufferWorker {
     actions: Vec<f32>,
     dones: Vec<f32>,
     log_probs: Vec<f32>,
-    model_version: u64,
+    model_version: i64,
 }
 
 impl RolloutBufferWorker {
@@ -38,7 +38,7 @@ impl RolloutBufferWorker {
     }
     
     /// note here that the state is actually the previous state t+0 from the gym and not the current one which is t+1
-    pub fn push_experience(&mut self, state: Vec<f32>, reward: f32, action: f32, done: f32, log_prob: f32, model_ver: u64) -> bool {
+    pub fn push_experience(&mut self, state: Vec<f32>, reward: f32, action: f32, done: f32, log_prob: f32, model_ver: i64) -> bool {
         self.states.push(state);
         // self.states.iter_mut().zip(state).map(|(vec, val)| vec.push(val)).for_each(drop);
         self.rewards.push(reward);
