@@ -1,12 +1,16 @@
-use std::{io::Cursor, thread::{self, JoinHandle}, time::Duration};
+use std::{io::Cursor, thread, time::Duration};
 
-use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_channel::bounded;
 use indicatif::{MultiProgress, ProgressBar};
 use redis::{Client, Commands};
 // use serde::{Deserialize, Serialize};
 use tch::{nn, Device, Kind, Tensor};
 
-use crate::{algorithms::common_utils::rollout_buffer::{rollout_buffer_utils::{ExperienceStore, ExperienceStoreProcs}, rollout_buffer_worker::{buffer_worker, RolloutBufferWorker, StepStore}}, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::{EnvConfig, VecGymEnv}};
+use crate::{
+    algorithms::common_utils::rollout_buffer::rollout_buffer_worker::{buffer_worker, StepStore}, 
+    models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, 
+    vec_gym_env::VecGymEnv
+};
 
 
 pub fn get_experience(
@@ -149,37 +153,6 @@ pub fn get_experience(
 
     prog_bar.finish_and_clear();
 }
-
-// TODO: move this to rollout utils? maybe abstract this better?
-// fn buffer_worker(
-//     rec_chan: Receiver<StepStore>,
-//     redis_url: String,
-//     obs_space: i64,
-//     nsteps: i64,
-//     nprocs: usize,
-// ) {
-//     // let rollout_worker = RolloutBufferWorker::new(redis_url, obs_space, nsteps);
-//     let mut rollout_bufs = Vec::new();
-//     for _i in 0..nprocs {
-//         rollout_bufs.push(RolloutBufferWorker::new(redis_url.to_owned(), obs_space, nsteps));
-//     }
-
-//     loop {
-//         let recv_data = rec_chan.recv();
-//         let step_store = match recv_data {
-//             Ok(out) => out,
-//             Err(err) => {
-//                 // NOTE: remove for now since we're just running the function aka the channel wil be disconnected anyways
-//                 // println!("recv err in experience buf worker: {err}");
-//                 break;
-//             }
-//         };
-//         // rollout_worker.push_experience(step_store.obs, step_store.reward, step_store.action, step_store.done, step_store.log_prob);
-//         for (i, buf) in rollout_bufs.iter_mut().enumerate() {
-//             buf.push_experience(step_store.obs[i].clone(), step_store.reward[i], step_store.action[i], step_store.done[i], step_store.log_prob[i], step_store.model_ver);
-//         }
-//     }
-// }
 
 // TODO: maybe convert function to struct so it can generate and hold the environment by itself, though we can do this with a function anyways so meh,
 // also maybe look into dealing with the progress bar
