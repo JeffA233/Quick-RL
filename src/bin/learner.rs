@@ -161,7 +161,7 @@ pub fn main() {
     let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(UPDATES as u64));
 
     // make env
-    let mut env = VecGymEnv::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_name);
+    let env = VecGymEnv::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_name);
     println!("action space: {}", env.action_space());
     let obs_space = env.observation_space()[1];
     println!("observation space: {:?}", obs_space);
@@ -189,7 +189,7 @@ pub fn main() {
 
     // misc stats stuff
     // let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
-    let mut sum_rewards = vec![0.; NPROCS as usize];
+    // let mut sum_rewards = vec![0.; NPROCS as usize];
     let mut total_rewards = 0f64;
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
@@ -209,23 +209,23 @@ pub fn main() {
         // clear redis
         redis_con.del::<&str, ()>("exp_store").unwrap();
 
-        get_experience(
-            NSTEPS, 
-            NPROCS, 
-            // obs_space, 
-            device, 
-            &multi_prog_bar_total, 
-            &total_prog_bar, 
-            prog_bar_func, 
-            // &mut act_model, 
-            // act_buffer,
-            redis_str,
-            act_config.clone(),
-            &mut env, 
-            &mut sum_rewards, 
-            &mut total_rewards, 
-            &mut total_episodes
-        );
+        // get_experience(
+        //     NSTEPS, 
+        //     NPROCS, 
+        //     // obs_space, 
+        //     device, 
+        //     &multi_prog_bar_total, 
+        //     &total_prog_bar, 
+        //     prog_bar_func, 
+        //     // &mut act_model, 
+        //     // act_buffer,
+        //     redis_str,
+        //     act_config.clone(),
+        //     &mut env, 
+        //     &mut sum_rewards, 
+        //     &mut total_rewards, 
+        //     &mut total_episodes
+        // );
         // let ten_vec: Vec<Vec<Vec<f32>>> = Vec::try_from(ten_obs).unwrap();
         // -- 
         total_steps += NSTEPS * NPROCS;
