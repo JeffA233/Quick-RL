@@ -6,18 +6,8 @@ use redis::{Client, Commands};
 // use serde::{Deserialize, Serialize};
 use tch::{nn, Device, Kind, Tensor};
 
-use crate::{algorithms::common_utils::rollout_buffer::{rollout_buffer_utils::{ExperienceStore, ExperienceStoreProcs}, rollout_buffer_worker::RolloutBufferWorker}, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::{EnvConfig, VecGymEnv}};
+use crate::{algorithms::common_utils::rollout_buffer::{rollout_buffer_utils::{ExperienceStore, ExperienceStoreProcs}, rollout_buffer_worker::{buffer_worker, RolloutBufferWorker, StepStore}}, models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, vec_gym_env::{EnvConfig, VecGymEnv}};
 
-
-pub struct StepStore {
-    obs: Vec<Vec<f32>>,
-    action: Vec<f32>,
-    reward: Vec<f32>,
-    done: Vec<f32>,
-    log_prob: Vec<f32>,
-    model_ver: i64,
-    // info: HashMap<String, f32>,
-}
 
 pub fn get_experience(
     nsteps: i64, 
@@ -147,180 +137,80 @@ pub fn get_experience(
         // obs_store.copy_(&Tensor::from_slice2(&step.obs).view_([nprocs, obs_space]));
         obs_store = Tensor::from_slice2(&step.obs).to_device_(device, Kind::Float, true, false);
 
-        // BUG: incorrect assumptions of dimensions
-        // s_states.push(step.obs);
-        // // s_actions_ten.get(s).copy_(&actions_sqz);
-        // s_actions.push(Vec::try_from(actions_sqz).unwrap());
-        // // s_states_ten.get(s + 1).copy_(&step.obs);
-        // // s_rewards_ten.get(s).copy_(&step.reward);
-        // s_rewards.push(step.reward);
-        // // dones_f_ten.get(s).copy_(masks);
-        // dones_f.push(is_done_f);
-        // // s_log_probs_ten.get(s).copy_(&log_prob_flat);
-        // s_log_probs.push(Vec::try_from(log_prob_flat).unwrap());
-
-        // s_states.iter_mut().zip(step.obs.into_iter()).map(|(vec, val)| vec.push(val)).for_each(drop);
-        // s_actions.iter_mut().zip(Vec::try_from(actions_sqz).unwrap()).map(|(vec, val)| vec.push(val)).for_each(drop);
-        // s_rewards.iter_mut().zip(step.reward.into_iter()).map(|(vec, val)| vec.push(val)).for_each(drop);
-        // dones_f.iter_mut().zip(is_done_f.into_iter()).map(|(vec, val)| vec.push(val)).for_each(drop);
-        // s_log_probs.iter_mut().zip(Vec::try_from(log_prob_flat).unwrap()).map(|(vec, val)| vec.push(val)).for_each(drop);
-
-        // check dones logic
-        // NOTE: first state push will be in here once we reinitialize the vec, taken from the current environment observation
-        // for i in 0..nprocs {
-        //     let done = bool::try_from(step.is_done.get(i)).unwrap();
-        //     if done {
-
-        //     }
-        // }
         let actions_vec = Vec::try_from(actions_sqz).unwrap();
         let log_probs_vec = Vec::try_from(log_prob_flat).unwrap();
-        // replacement for loop underneath
-        step.is_done.iter().zip(env_done_stores.iter_mut()).map(|(done, store)| if s > nsteps && *done {*store = *done}).for_each(drop);
-        // for proc_id in 0..nprocs as usize {
-        //     let proc_done = step.is_done[proc_id];
-        //     // let done_bool = buf.push_experience(step.obs[proc_id].clone(), step.reward[proc_id], actions_vec[proc_id], is_done_f[proc_id], log_probs_vec[proc_id]);
 
-        //     if s > nsteps {
-        //         // we only want to set this when it is done otherwise it will also set to false
-        //         if proc_done {
-        //             env_done_stores[proc_id] = proc_done; 
-        //         }
-        //     }
-        // }
+        step.is_done.iter().zip(env_done_stores.iter_mut()).map(|(done, store)| if s > nsteps && *done {*store = *done}).for_each(drop);
 
         send_local.send(StepStore { obs: step.obs, action: actions_vec, reward: step.reward, done: is_done_f, log_prob: log_probs_vec, model_ver: act_model_ver }).unwrap();
-        // for (i, done) in step.is_done.iter().enumerate() {
-        //     if *done {
-        //         // let mut new_state_vec = Vec::with_capacity(nsteps as usize);
-        //         // let mut proc_states: Vec<Vec<f32>> = s_states.iter().map(|val| val[i].clone()).collect();
-        //         // let proc_rewards: Vec<f32> = s_rewards.iter().map(|val| val[i]).collect();
-        //         // let proc_acts: Vec<f32> = s_actions.iter().map(|val| val[i]).collect();
-        //         // let proc_dones: Vec<f32> = dones_f.iter().map(|val| val[i]).collect();
-        //         // let proc_log_probs: Vec<f32> = s_log_probs.iter().map(|val| val[i]).collect();
-
-        //         // new_state_vec.push(proc_states.pop().unwrap());
-
-        //         // assert!(proc_states.len() == proc_rewards.len(), "states length was not correct compared to rewards in exp gather func: {}, {}", proc_states.len(), proc_rewards.len());
-
-        //         // rollout_bufs[i].submit_rollout(ExperienceStore { s_states: proc_states, s_rewards: proc_rewards, s_actions: proc_acts, dones_f: proc_dones, s_log_probs: proc_log_probs });
-
-        //         // s_states.iter_mut().map(|val| *val = Vec::new()).for_each(drop);
-        //         // s_rewards.iter_mut().map(|val| *val = Vec::new()).for_each(drop);
-        //         // s_actions.iter_mut().map(|val| *val = Vec::new()).for_each(drop);
-        //         // dones_f.iter_mut().map(|val| *val = Vec::new()).for_each(drop);
-        //         // s_log_probs.iter_mut().map(|val| *val = Vec::new()).for_each(drop);
-
-        //         // BUG incorrect indexing dimensions, is actually [nsteps, nprocs] and not [nprocs, nsteps] like attempted above
-        //         // let last_state = s_states.last().unwrap().clone();
-        //         let last_state = s_states[i].pop().unwrap();
-        //         // new_state_vec.push(last_state.clone());
-        //         assert!(s_states[i].len() == s_rewards[i].len(), "states length was not correct compared to rewards in exp gather func: {}, {}", s_states[i].len(), s_rewards[i].len());
-        //         // TODO: shouldn't need to clone here, feels dumb
-        //         rollout_bufs[i].submit_rollout(ExperienceStore { s_states: s_states[i].clone(), s_rewards: s_rewards[i].clone(), s_actions: s_actions[i].clone(), dones_f: dones_f[i].clone(), s_log_probs: s_log_probs[i].clone(), terminal_obs: last_state.clone() });
-        //         // start new episodes
-        //         s_rewards[i].clear();
-        //         s_actions[i].clear();
-        //         dones_f[i].clear();
-        //         s_log_probs[i].clear();
-        //         s_states[i].clear();
-
-        //         // let mut new_state_vec = Vec::new();
-        //         // let last_state = s_states.last().unwrap().clone();
-        //         // new_state_vec.push(last_state);
-        //         s_states[i].push(last_state);
-
-        //         if s > nsteps {
-        //             env_done_stores[i] = true;
-        //         }
-        //     }
-        // }
-
-        // this needs to be here in case we want to submit experience
-        // s_states.push(step.obs);
 
         s += 1;
     }
 
-    // let s_states = Vec::try_from(s_states_ten).unwrap();
-    // let s_rewards = Vec::try_from(s_rewards_ten).unwrap();
-    // let s_actions = Vec::try_from(s_actions_ten).unwrap();
-    // let dones_f = Vec::try_from(dones_f_ten).unwrap();
-    // let s_log_probs = Vec::try_from(s_log_probs_ten).unwrap();
-
-    // let exp_store = ExperienceStoreProcs {s_states, s_rewards, s_actions, dones_f, s_log_probs};
-    // let mut s = flexbuffers::FlexbufferSerializer::new();
-    // exp_store.serialize(&mut s).unwrap();
-    // let view = s.view();
-
-    // redis_con.set::<&str, &[u8], ()>("exp_store", view).unwrap();
-
     prog_bar.finish_and_clear();
-
-    // (s_states, s_rewards, s_actions, dones_f, s_log_probs)
-    // s_states_ten
 }
 
-fn buffer_worker(
-    rec_chan: Receiver<StepStore>,
-    redis_url: String,
-    obs_space: i64,
-    nsteps: i64,
-    nprocs: usize,
-) {
-    // let rollout_worker = RolloutBufferWorker::new(redis_url, obs_space, nsteps);
-    let mut rollout_bufs = Vec::new();
-    for _i in 0..nprocs {
-        rollout_bufs.push(RolloutBufferWorker::new(redis_url.to_owned(), obs_space, nsteps));
-    }
+// TODO: move this to rollout utils? maybe abstract this better?
+// fn buffer_worker(
+//     rec_chan: Receiver<StepStore>,
+//     redis_url: String,
+//     obs_space: i64,
+//     nsteps: i64,
+//     nprocs: usize,
+// ) {
+//     // let rollout_worker = RolloutBufferWorker::new(redis_url, obs_space, nsteps);
+//     let mut rollout_bufs = Vec::new();
+//     for _i in 0..nprocs {
+//         rollout_bufs.push(RolloutBufferWorker::new(redis_url.to_owned(), obs_space, nsteps));
+//     }
 
-    loop {
-        let recv_data = rec_chan.recv();
-        let step_store = match recv_data {
-            Ok(out) => out,
-            Err(err) => {
-                // NOTE: remove for now since we're just running the function aka the channel wil be disconnected anyways
-                // println!("recv err in experience buf worker: {err}");
-                break;
-            }
-        };
-        // rollout_worker.push_experience(step_store.obs, step_store.reward, step_store.action, step_store.done, step_store.log_prob);
-        for (i, buf) in rollout_bufs.iter_mut().enumerate() {
-            buf.push_experience(step_store.obs[i].clone(), step_store.reward[i], step_store.action[i], step_store.done[i], step_store.log_prob[i], step_store.model_ver);
-        }
-    }
-}
+//     loop {
+//         let recv_data = rec_chan.recv();
+//         let step_store = match recv_data {
+//             Ok(out) => out,
+//             Err(err) => {
+//                 // NOTE: remove for now since we're just running the function aka the channel wil be disconnected anyways
+//                 // println!("recv err in experience buf worker: {err}");
+//                 break;
+//             }
+//         };
+//         // rollout_worker.push_experience(step_store.obs, step_store.reward, step_store.action, step_store.done, step_store.log_prob);
+//         for (i, buf) in rollout_bufs.iter_mut().enumerate() {
+//             buf.push_experience(step_store.obs[i].clone(), step_store.reward[i], step_store.action[i], step_store.done[i], step_store.log_prob[i], step_store.model_ver);
+//         }
+//     }
+// }
 
-// TODO: convert function to struct so it can generate and hold the environment by itself,
+// TODO: maybe convert function to struct so it can generate and hold the environment by itself, though we can do this with a function anyways so meh,
 // also maybe look into dealing with the progress bar
-pub struct ExperienceGenerator {
-    nprocs: i64, 
-    // obs_space: i64, 
-    device: Device, 
-    // multi_prog_bar_total: &MultiProgress, 
-    // total_prog_bar: &ProgressBar, 
-    // prog_bar_func: impl Fn(u64) -> ProgressBar,
-    redis_url: String,
-    act_model_config: LayerConfig,
-    env: VecGymEnv,
-    sum_rewards: Tensor,
-    total_rewards: f64,
-    total_episodes: f64,
-}
+// pub struct ExperienceGenerator {
+//     nprocs: i64, 
+//     // obs_space: i64, 
+//     device: Device, 
+//     // multi_prog_bar_total: &MultiProgress, 
+//     // total_prog_bar: &ProgressBar, 
+//     // prog_bar_func: impl Fn(u64) -> ProgressBar,
+//     redis_url: String,
+//     act_model_config: LayerConfig,
+//     env: VecGymEnv,
+//     sum_rewards: Tensor,
+//     total_rewards: f64,
+//     total_episodes: f64,
+// }
 
-impl ExperienceGenerator {
-    // TODO: probably can calculate nprocs via the env_config
-    pub fn new(nprocs: i64, device: Device, redis_url: String, act_model_config: LayerConfig, env_config: EnvConfig) -> Self {
-        let env = VecGymEnv::new(env_config.match_nums, env_config.gravity_nums, env_config.boost_nums, env_config.self_plays, env_config.tick_skip, env_config.reward_file_name);
-        Self {
-            nprocs,
-            device,
-            redis_url,
-            act_model_config,
-            env,
-            sum_rewards: Tensor::zeros([nprocs], (Kind::Float, Device::Cpu)),
-            total_rewards: 0.,
-            total_episodes: 0.,
-        }
-    }
-}
+// impl ExperienceGenerator {
+//     // TODO: probably can calculate nprocs via the env_config
+//     pub fn new(nprocs: i64, device: Device, redis_url: String, act_model_config: LayerConfig, env_config: EnvConfig) -> Self {
+//         let env = VecGymEnv::new(env_config.match_nums, env_config.gravity_nums, env_config.boost_nums, env_config.self_plays, env_config.tick_skip, env_config.reward_file_name);
+//         Self {
+//             nprocs,
+//             device,
+//             redis_url,
+//             act_model_config,
+//             env,
+//             sum_rewards: Tensor::zeros([nprocs], (Kind::Float, Device::Cpu)),
+//             total_rewards: 0.,
+//             total_episodes: 0.,
+//         }
+//     }
+// }

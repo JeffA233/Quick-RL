@@ -31,11 +31,12 @@ impl RolloutBufferHost {
 
         while rewards.len() < num_steps {
             // blpop can get multiple keys so it will return the key-name followed by the actual data for each key input
-            let exp_store: Vec<Vec<u8>> = self.redis_con.blpop("exp_store", 0.).unwrap();
+            // [["n, a, m, e"], ["d, a, t, a"]]
+            let exp_store_bytes: Vec<Vec<u8>> = self.redis_con.blpop("exp_store", 0.).unwrap();
             // let exp_store: Vec<u8> = self.redis_con.blpop("exp_store", 0.).unwrap();
             // let exp_store_str: String = self.redis_con.blpop("exp_store", 0.).unwrap();
             // let exp_store = exp_store_str.as_bytes();
-            let flex_read = flexbuffers::Reader::get_root(exp_store[1].as_slice()).unwrap();
+            let flex_read = flexbuffers::Reader::get_root(exp_store_bytes[1].as_slice()).unwrap();
 
             let exp_store = ExperienceStore::deserialize(flex_read).unwrap();
 

@@ -95,6 +95,7 @@ pub fn main() {
     tch::manual_seed(0);
     tch::Cuda::manual_seed_all(0);
 
+    // how old a model can be, logic is (current_ver - min_model_ver) < rollout_model_ver
     let min_model_ver = -2;
 
     // configure number of agents and gamemodes

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crossbeam_channel::Receiver;
 use redis::{Client, Commands, Connection};
 use serde::Serialize;
 
@@ -103,6 +104,47 @@ impl RolloutBufferWorker {
         // self.actions = Vec::new();
         // self.dones = Vec::new();
         // self.log_probs = Vec::new();
+    }
+}
+
+pub struct StepStore {
+    pub obs: Vec<Vec<f32>>,
+    pub action: Vec<f32>,
+    pub reward: Vec<f32>,
+    pub done: Vec<f32>,
+    pub log_prob: Vec<f32>,
+    pub model_ver: i64,
+    // info: HashMap<String, f32>,
+}
+
+pub fn buffer_worker(
+    rec_chan: Receiver<StepStore>,
+    redis_url: String,
+    obs_space: i64,
+    nsteps: i64,
+    nprocs: usize,
+) {
+    // let rollout_worker = RolloutBufferWorker::new(redis_url, obs_space, nsteps);
+    let mut rollout_bufs = Vec::new();
+    for _i in 0..nprocs {
+        rollout_bufs.push(RolloutBufferWorker::new(redis_url.to_owned(), obs_space, nsteps));
+    }
+
+    loop {
+        let recv_data = rec_chan.recv();
+        let step_store = match recv_data {
+            Ok(out) => out,
+            Err(err) => {
+                // NOTE: remove for now since we're just running the function aka the channel wil be disconnected anyways
+                // TODO: handle this error
+                // println!("recv err in experience buf worker: {err}");
+                break;
+            }
+        };
+        // rollout_worker.push_experience(step_store.obs, step_store.reward, step_store.action, step_store.done, step_store.log_prob);
+        for (i, buf) in rollout_bufs.iter_mut().enumerate() {
+            buf.push_experience(step_store.obs[i].clone(), step_store.reward[i], step_store.action[i], step_store.done[i], step_store.log_prob[i], step_store.model_ver);
+        }
     }
 }
 
