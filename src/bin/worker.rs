@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{thread, time::Duration};
 
 /* Proximal Policy Optimization (PPO) model.
 
@@ -10,6 +10,7 @@ use std::time::Duration;
 */
 // use bytebuffer::ByteBuffer;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
+use redis::{Client, Commands};
 // use serde::{
 //     // de::IntoDeserializer, 
 //     Deserialize, 
@@ -45,9 +46,9 @@ const MULT: i64 = 48;
 // const MULT: i64 = 1;
 const NPROCS: i64 = 2*MULT;
 // const NPROCS: i64 = 1;
-const NSTEPS: i64 = (2048*32)/NPROCS;
-// const NSTEPS: i64 = 6;
-const NSTACK: i64 = 1;
+// const NSTEPS: i64 = (2048*32)/NPROCS;
+const NSTEPS: i64 = 1;
+// const NSTACK: i64 = 1;
 const UPDATES: i64 = 1000000;
 
 
@@ -132,8 +133,8 @@ pub fn main() {
 
     // get Redis connection
     let redis_str = "redis://127.0.0.1/";
-    // let redis_client = Client::open(redis_str).unwrap();
-    // let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
+    let redis_client = Client::open(redis_str).unwrap();
+    let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
 
     // let mut buffer_host = RolloutBufferHost::new(redis_str.to_owned());
 
@@ -161,7 +162,9 @@ pub fn main() {
 
     // let train_size = NSTEPS * NPROCS;
     // start of learning loops
-    for update_index in 0..UPDATES {
+    let mut update_index: i64 = 0;
+    // for update_index in 0..UPDATES {
+    loop {
         // let mut act_save_stream = ByteBuffer::new();
         // // TODO: consider parsing this result
         // vs_act.save_to_stream(&mut act_save_stream).unwrap();
@@ -173,6 +176,14 @@ pub fn main() {
         // redis_con.set::<&str, std::vec::Vec<u8>, ()>("model_data", act_buffer).unwrap();
         // // clear redis
         // redis_con.del::<&str, ()>("exp_store").unwrap();
+
+        // TODO: in case we are also trying to learn and both are on GPU, we should pause to save resources
+        let pause = redis_con.get::<&str, bool>("gather_pause").unwrap();
+
+        if pause {
+            thread::sleep(Duration::from_millis(100));
+            continue;
+        }
 
         get_experience(
             NSTEPS, 
@@ -387,6 +398,7 @@ pub fn main() {
             // }
         }
         // println!("\nnext set -------------------\n");
+        update_index += 1;
     }
     // total_prog_bar.finish_and_clear();
     // Ok(())

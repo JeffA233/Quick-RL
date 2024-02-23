@@ -185,6 +185,8 @@ pub fn main() {
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
     redis_con.set::<&str, i64, ()>("model_ver", 0).unwrap();
+    // use this flag to pause episode gathering if on the same PC, just testing for now
+    redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
     let mut model_ver: i64 = 0;
 
     // misc stats stuff
@@ -235,6 +237,7 @@ pub fn main() {
 
         // let exp_store = ExperienceStoreProcs::deserialize(flex_read).unwrap();
         let mut exp_store = buffer_host.get_experience(BUFFERSIZE as usize, model_ver-min_model_ver);
+        redis_con.set::<&str, bool, ()>("gather_pause", true).unwrap();
         exp_store.s_states.push(exp_store.terminal_obs);
         // truncate since get_experience returns full episodes for now
         // exp_store.s_states.truncate((NSTEPS * NPROCS) as usize);
@@ -422,6 +425,8 @@ pub fn main() {
             // }
         }
         // println!("\nnext set -------------------\n");
+
+        redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
     }
     total_prog_bar.finish_and_clear();
     // Ok(())
