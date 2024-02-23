@@ -416,8 +416,10 @@ pub fn main() {
             let tot = val_loss.iter().sum::<f32>();
             let val_l = tot / val_loss.len() as f32;
 
-            println!("update idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}, clip frac avg: {}, kl div avg: {}, ent: {}, loss: {}, act loss: {}, val loss: {}",
-             update_index, total_episodes, total_rewards / total_episodes, total_steps, clip_frac, kl_div, entropy, loss, act_l, val_l);
+            // println!("update idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}, clip frac avg: {}, kl div avg: {}, ent: {}, loss: {}, act loss: {}, val loss: {}",
+            println!("update idx: {}, total eps: {:.0}, total steps: {}, clip frac avg: {}, kl div avg: {}, ent: {}, loss: {}, act loss: {}, val loss: {}",
+            //  update_index, total_episodes, total_rewards / total_episodes, total_steps, clip_frac, kl_div, entropy, loss, act_l, val_l);
+            update_index, total_episodes, total_steps, clip_frac, kl_div, entropy, loss, act_l, val_l);
             total_rewards = 0.;
             total_episodes = 0.;
         }
