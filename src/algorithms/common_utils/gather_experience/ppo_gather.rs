@@ -1,6 +1,6 @@
 use std::{io::Cursor, thread, time::Duration};
 
-use crossbeam_channel::bounded;
+use crossbeam_channel::{bounded, Sender};
 use indicatif::{MultiProgress, ProgressBar};
 use redis::{Client, Commands};
 // use serde::{Deserialize, Serialize};
@@ -24,6 +24,7 @@ pub fn get_experience(
     redis_url: &str,
     act_model_config: LayerConfig,
     env: &mut VecGymEnv,
+    send_local: &Sender<StepStore>,
     // sum_rewards: &mut Tensor,
     sum_rewards: &mut [f64],
     total_rewards: &mut f64,
@@ -79,9 +80,9 @@ pub fn get_experience(
     // let mut thrd_vec = Vec::<JoinHandle<()>>::new();
 
     // for _i in 0..nprocs {
-        let (send_local, rx) = bounded(5000);
-        let worker_url = redis_url.to_owned();
-        let join_hand = thread::spawn(move || buffer_worker(rx, worker_url, obs_space, nsteps, nprocs as usize));
+        // let (send_local, rx) = bounded(5000);
+        // let worker_url = redis_url.to_owned();
+        // let join_hand = thread::spawn(move || buffer_worker(rx, worker_url, obs_space, nsteps, nprocs as usize));
         // thrd_vec.push(join_hand);
         // send_vec.push(send_local);
     // }

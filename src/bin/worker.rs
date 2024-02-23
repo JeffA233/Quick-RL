@@ -1,5 +1,6 @@
 use std::{thread, time::Duration};
 
+use crossbeam_channel::bounded;
 /* Proximal Policy Optimization (PPO) model.
 
    Proximal Policy Optimization Algorithms, Schulman et al. 2017
@@ -23,7 +24,7 @@ use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor}
 
 use quick_rl::{
     algorithms::common_utils::{gather_experience::ppo_gather::get_experience, rollout_buffer::{
-        rollout_buffer_host::RolloutBufferHost, 
+        rollout_buffer_host::RolloutBufferHost, rollout_buffer_worker::buffer_worker, 
         // rollout_buffer_utils::ExperienceStoreProcs
     }}, 
     models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
@@ -136,6 +137,11 @@ pub fn main() {
     let redis_client = Client::open(redis_str).unwrap();
     let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
 
+    // moved here from gather_experience since otherwise we have to wait for full episodes to be submitted which is bad
+    let (send_local, rx) = bounded(5000);
+    let worker_url = redis_str.to_owned();
+    let join_hand = thread::spawn(move || buffer_worker(rx, worker_url, obs_space, NSTEPS, NPROCS as usize));
+
     // let mut buffer_host = RolloutBufferHost::new(redis_str.to_owned());
 
     // setup actor and critic
@@ -198,6 +204,7 @@ pub fn main() {
             redis_str,
             act_config.clone(),
             &mut env, 
+            &send_local,
             &mut sum_rewards, 
             &mut total_rewards, 
             &mut total_episodes
