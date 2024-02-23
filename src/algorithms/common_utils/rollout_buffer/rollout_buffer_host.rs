@@ -48,6 +48,8 @@ impl RolloutBufferHost {
                 log_probs.extend(exp_store.s_log_probs);
     
                 term_obs = exp_store.terminal_obs;
+            } else {
+                println!("discarded steps, model ver was {} and min version was: {}", exp_store.model_ver, min_ver);
             }
         }
 

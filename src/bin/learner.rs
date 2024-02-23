@@ -96,7 +96,7 @@ pub fn main() {
     tch::Cuda::manual_seed_all(0);
 
     // how old a model can be, logic is (current_ver - min_model_ver) < rollout_model_ver
-    let min_model_ver = -2;
+    let min_model_ver = 2;
 
     // configure number of agents and gamemodes
     let num_1s = (NPROCS/2) as usize;
@@ -211,6 +211,8 @@ pub fn main() {
         // clear redis
         redis_con.del::<&str, ()>("exp_store").unwrap();
 
+        redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
+
         // get_experience(
         //     NSTEPS, 
         //     NPROCS, 
@@ -237,6 +239,7 @@ pub fn main() {
 
         // let exp_store = ExperienceStoreProcs::deserialize(flex_read).unwrap();
         let mut exp_store = buffer_host.get_experience(BUFFERSIZE as usize, model_ver-min_model_ver);
+        println!("consumed timesteps");
         redis_con.set::<&str, bool, ()>("gather_pause", true).unwrap();
         exp_store.s_states.push(exp_store.terminal_obs);
         // truncate since get_experience returns full episodes for now
@@ -426,7 +429,7 @@ pub fn main() {
         }
         // println!("\nnext set -------------------\n");
 
-        redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
+        // redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
     }
     total_prog_bar.finish_and_clear();
     // Ok(())

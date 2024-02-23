@@ -374,7 +374,7 @@ pub fn main() {
         //     }
         // }
         // prog_bar.finish_and_clear();
-        // if update_index > 0 && update_index % 25 == 0 {
+        if update_index > 0 && update_index % 25 == 0 {
         //     let tot = clip_fracs.iter().sum::<f32>();
         //     let clip_frac = tot / clip_fracs.len() as f32;
 
@@ -397,7 +397,7 @@ pub fn main() {
              update_index, total_episodes, total_rewards / total_episodes, total_steps);
             total_rewards = 0.;
             total_episodes = 0.;
-        // }
+        }
         if update_index > 0 && update_index % 1000 == 0 {
             // NOTE: the ValueStore doesn't seem to store the optimizer state (which seems to be bound to the optimizer itself)
             // if let Err(err) = vs.save(format!("trpo{update_index}.ot")) {
