@@ -29,6 +29,8 @@ impl RolloutBufferHost {
         let mut log_probs = Vec::new();
         let mut term_obs = Vec::new();
 
+        let mut discarded_stores = 0;
+
         while rewards.len() < num_steps {
             // blpop can get multiple keys so it will return the key-name followed by the actual data for each key input
             // [["n, a, m, e"], ["d, a, t, a"]]
@@ -49,8 +51,11 @@ impl RolloutBufferHost {
     
                 term_obs = exp_store.terminal_obs;
             } else {
-                println!("discarded steps, model ver was {} and min version was: {}", exp_store.model_ver, min_ver);
+                discarded_stores += 1;
+                // println!("discarded steps, model ver was {} and min version was: {}", exp_store.model_ver, min_ver);
             }
+
+            println!("discarded {} rollouts", discarded_stores);
         }
 
         ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs, terminal_obs: term_obs, model_ver: 0, }
