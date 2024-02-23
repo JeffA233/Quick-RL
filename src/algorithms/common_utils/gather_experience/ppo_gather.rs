@@ -95,10 +95,11 @@ pub fn get_experience(
 
     // start of experience gather loop
     // let mut all_done = false;
-    let mut env_done_stores = vec![false; nprocs as usize];
+    // let mut env_done_stores = vec![false; nprocs as usize];
     let mut s = 0;
     // for _s in 0..nsteps {
-    while (s < nsteps) || !env_done_stores.iter().all(|b| *b) {
+    // while (s < nsteps) || !env_done_stores.iter().all(|b| *b) {
+    while s < nsteps {
         total_prog_bar.inc(nprocs as u64);
         prog_bar.inc(nprocs as u64);
 
@@ -144,7 +145,7 @@ pub fn get_experience(
         let actions_vec = Vec::try_from(actions_sqz).unwrap();
         let log_probs_vec = Vec::try_from(log_prob_flat).unwrap();
 
-        step.is_done.iter().zip(env_done_stores.iter_mut()).map(|(done, store)| if s > nsteps && *done {*store = *done}).for_each(drop);
+        // step.is_done.iter().zip(env_done_stores.iter_mut()).map(|(done, store)| if s > nsteps && *done {*store = *done}).for_each(drop);
 
         send_local.send(StepStore { obs: step.obs, action: actions_vec, reward: step.reward, done: is_done_f, log_prob: log_probs_vec, model_ver: act_model_ver }).unwrap();
 

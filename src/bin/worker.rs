@@ -46,8 +46,8 @@ const MULT: i64 = 48;
 // const MULT: i64 = 1;
 const NPROCS: i64 = 2*MULT;
 // const NPROCS: i64 = 1;
-// const NSTEPS: i64 = (2048*32)/NPROCS;
-const NSTEPS: i64 = 1;
+const NSTEPS: i64 = (2048*32)/NPROCS;
+// const NSTEPS: i64 = 1;
 // const NSTACK: i64 = 1;
 const UPDATES: i64 = 1000000;
 
