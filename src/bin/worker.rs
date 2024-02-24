@@ -12,6 +12,7 @@ use crossbeam_channel::bounded;
 // use bytebuffer::ByteBuffer;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use redis::{Client, Commands};
+use serde::Deserialize;
 // use serde::{
 //     // de::IntoDeserializer, 
 //     Deserialize, 
@@ -149,7 +150,7 @@ pub fn main() {
     // let vs_critic = nn::VarStore::new(device);
     // let init_config = Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true });
     // TODO: get this from Redis which then is from the learner
-    let act_config = LayerConfig::new(vec![256; 3], obs_space, Some(env.action_space()));
+    // let act_config = LayerConfig::new(vec![256; 3], obs_space, Some(env.action_space()));
     // let mut act_model = Actor::new(&vs_act.root(), act_config.clone(), init_config);
     // let critic_config = LayerConfig::new(vec![256; 3], obs_space, None);
     // let mut critic_model = Critic::new(&vs_critic.root(), critic_config, init_config);
@@ -158,6 +159,10 @@ pub fn main() {
 
     // redis_con.set::<&str, i64, ()>("model_ver", 0).unwrap();
     // let mut model_ver: i64 = 0;
+
+    let act_config_data = redis_con.get::<&str, Vec<u8>>("actor_structure").unwrap();
+    let flex_read = flexbuffers::Reader::get_root(act_config_data.as_slice()).unwrap();
+    let act_config = LayerConfig::deserialize(flex_read).unwrap();
 
     // misc stats stuff
     // let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));

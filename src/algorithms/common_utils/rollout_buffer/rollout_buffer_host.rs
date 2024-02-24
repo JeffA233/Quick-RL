@@ -54,9 +54,9 @@ impl RolloutBufferHost {
                 discarded_stores += 1;
                 // println!("discarded steps, model ver was {} and min version was: {}", exp_store.model_ver, min_ver);
             }
-
-            println!("discarded {} rollouts", discarded_stores);
         }
+
+        println!("discarded {} rollouts", discarded_stores);
 
         ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs, terminal_obs: term_obs, model_ver: 0, }
     }

@@ -10,6 +10,7 @@ use std::time::Duration;
 */
 use bytebuffer::ByteBuffer;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
+use serde::Serialize;
 // use serde::{
 //     // de::IntoDeserializer, 
 //     Deserialize, 
@@ -188,6 +189,11 @@ pub fn main() {
     // use this flag to pause episode gathering if on the same PC, just testing for now
     redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
     let mut model_ver: i64 = 0;
+
+    // send layer config to worker(s) for tch/libtorch usage
+    let mut s = flexbuffers::FlexbufferSerializer::new();
+    act_config.serialize(&mut s).unwrap();
+    redis_con.set::<&str, &[u8], ()>("actor_structure", s.view()).unwrap();
 
     // misc stats stuff
     // let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
