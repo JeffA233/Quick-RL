@@ -11,21 +11,13 @@ use std::time::Duration;
 use bytebuffer::ByteBuffer;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use serde::Serialize;
-// use serde::{
-//     // de::IntoDeserializer, 
-//     Deserialize, 
-//     // Deserializer
-// };
 // use tch::nn::init::{NonLinearity, NormalOrUniform};
 // use quick_rl::vec_gym_env::VecGymEnv;
 // use tch::kind::{FLOAT_CPU, INT64_CPU};
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
 use quick_rl::{
-    algorithms::common_utils::{gather_experience::ppo_gather::get_experience, rollout_buffer::{
-        rollout_buffer_host::RolloutBufferHost, 
-        // rollout_buffer_utils::ExperienceStoreProcs
-    }}, 
+    algorithms::common_utils::rollout_buffer::rollout_buffer_host::RolloutBufferHost, 
     models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
     // tch_utils::dbg_funcs::{
     //     print_tensor_2df32, 
@@ -39,7 +31,6 @@ use redis::{
     Client, Commands,
 };
 
-// const ENV_NAME: &str = "SpaceInvadersNoFrameskip-v4";
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
 // const MULT: i64 = 12;
 const MULT: i64 = 48;
@@ -52,33 +43,10 @@ const NSTACK: i64 = 1;
 const UPDATES: i64 = 1000000;
 const BUFFERSIZE: i64 = NSTEPS*NPROCS;
 // const OPTIM_BATCHSIZE: i64 = 6;
-const OPTIM_BATCHSIZE: i64 = BUFFERSIZE/1;
+// const OPTIM_BATCHSIZE: i64 = BUFFERSIZE/4;
+const OPTIM_BATCHSIZE: i64 = BUFFERSIZE;
 const OPTIM_EPOCHS: i64 = 20;
 
-// #[derive(Debug)]
-// struct FrameStack {
-//     data: Tensor,
-//     nprocs: i64,
-//     nstack: i64,
-// }
-
-// impl FrameStack {
-//     fn new(nprocs: i64, nstack: i64) -> FrameStack {
-//         FrameStack { data: Tensor::zeros([nprocs, nstack, 347], FLOAT_CPU), nprocs, nstack }
-//     }
-
-//     fn update<'a>(&'a mut self, img: &Tensor, masks: Option<&Tensor>) -> &'a Tensor {
-//         if let Some(masks) = masks {
-//             self.data *= masks.view([self.nprocs, 1, 1])
-//         };
-//         let slice = |i| self.data.narrow(1, i, 1);
-//         for i in 1..self.nstack {
-//             slice(i - 1).copy_(&slice(i))
-//         }
-//         slice(self.nstack - 1).copy_(img);
-//         &self.data
-//     }
-// }
 
 pub fn main() {
     // NOTE:
@@ -96,7 +64,7 @@ pub fn main() {
     tch::manual_seed(0);
     tch::Cuda::manual_seed_all(0);
 
-    // how old a model can be, logic is (current_ver - min_model_ver) < rollout_model_ver
+    // how old a model can be, logic is (current_ver - min_model_ver) < rollout_model_ver else discard step
     let min_model_ver = 2;
 
     // configure number of agents and gamemodes
@@ -162,6 +130,7 @@ pub fn main() {
     let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(UPDATES as u64));
 
     // make env
+    // TODO: can we get this from the worker or something so that we don't have to make the env in the learner?
     let env = VecGymEnv::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_name);
     println!("action space: {}", env.action_space());
     let obs_space = env.observation_space()[1];
@@ -196,9 +165,7 @@ pub fn main() {
     redis_con.set::<&str, &[u8], ()>("actor_structure", s.view()).unwrap();
 
     // misc stats stuff
-    // let mut sum_rewards = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
-    // let mut sum_rewards = vec![0.; NPROCS as usize];
-    let mut total_rewards = 0f64;
+    // let mut total_rewards = 0f64;
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
 
@@ -219,56 +186,19 @@ pub fn main() {
 
         redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
 
-        // get_experience(
-        //     NSTEPS, 
-        //     NPROCS, 
-        //     // obs_space, 
-        //     device, 
-        //     &multi_prog_bar_total, 
-        //     &total_prog_bar, 
-        //     prog_bar_func, 
-        //     // &mut act_model, 
-        //     // act_buffer,
-        //     redis_str,
-        //     act_config.clone(),
-        //     &mut env, 
-        //     &mut sum_rewards, 
-        //     &mut total_rewards, 
-        //     &mut total_episodes
-        // );
-        // let ten_vec: Vec<Vec<Vec<f32>>> = Vec::try_from(ten_obs).unwrap();
-        // -- 
         total_steps += NSTEPS * NPROCS;
-        // get redis
-        // let exp_store = redis_con.get::<&str, Vec<u8>>("exp_store").unwrap();
-        // let flex_read = flexbuffers::Reader::get_root(exp_store.as_slice()).unwrap();
 
-        // let exp_store = ExperienceStoreProcs::deserialize(flex_read).unwrap();
         let mut exp_store = buffer_host.get_experience(BUFFERSIZE as usize, model_ver-min_model_ver);
         println!("consumed timesteps");
         redis_con.set::<&str, bool, ()>("gather_pause", true).unwrap();
         exp_store.s_states.push(exp_store.terminal_obs);
-        // truncate since get_experience returns full episodes for now
-        // exp_store.s_states.truncate((NSTEPS * NPROCS) as usize);
-        // exp_store.s_actions.truncate((NSTEPS * NPROCS) as usize);
-        // exp_store.s_rewards.truncate((NSTEPS * NPROCS) as usize);
-        // exp_store.dones_f.truncate((NSTEPS * NPROCS) as usize);
-        // exp_store.s_log_probs.truncate((NSTEPS * NPROCS) as usize);
-        // println!("states size was: {}", exp_store.s_states.len());
-        // println!("states size 2 was: {}", exp_store.s_states[0].len());
-        // println!("states size 3 was: {}", exp_store.s_states[0][0].len());
-        //
+
         // move to Tensor
         let s_actions = Tensor::from_slice(&exp_store.s_actions);
-        let s_states = Tensor::from_slice2(&exp_store.s_states);
-        // let s_states = Tensor::zeros([NSTEPS + 1, NPROCS, obs_space], (Kind::Float, device));
-        // for (i, state) in exp_store.s_states.iter().enumerate() {
-        //     s_states.get(i as i64).copy_(&Tensor::from_slice2(state));
-        // }
-        // let ten_vec: Vec<Vec<Vec<f32>>> = Vec::try_from(&s_states).unwrap();
+        let states = Tensor::from_slice2(&exp_store.s_states);
         // println!("states size was: {}", ten_vec.len());
         // println!("states size 2 was: {}", ten_vec[0].len());
-        // println!("states size 3 was: {}", ten_vec[0][0].len());
+
         let s_log_probs = Tensor::from_slice(&exp_store.s_log_probs);
         let s_rewards = Tensor::from_slice(&exp_store.s_rewards);
         let dones_f = Tensor::from_slice(&exp_store.dones_f);
@@ -278,19 +208,13 @@ pub fn main() {
         // print_tensor_noval("actions", &s_actions);
         // print_tensor_noval("dones", &dones_f);
         // print_tensor_noval("log_probs", &s_log_probs);
-        // TODO: NSTACK is probably not required here?
-        // let states = s_states.view([NSTEPS + 1, NPROCS, NSTACK, obs_space]);
-        // let states = s_states.view([NSTEPS * NPROCS, NSTACK, obs_space]);
-        let states = s_states;
         let buf_size = s_rewards.size()[0];
         // print_tensor_noval("states after view", &states);
 
         // compute gae
-        // let adv = Tensor::zeros([NSTEPS, NPROCS], (Kind::Float, Device::Cpu));
         let adv = Tensor::zeros([buf_size], (Kind::Float, Device::Cpu));
         let vals = tch::no_grad(|| critic_model.forward(&states.to_device_(device, Kind::Float, true, false))).squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
         // print_tensor_noval("vals from critic", &vals);
-        // let mut last_gae_lam = Tensor::zeros([NPROCS], (Kind::Float, Device::Cpu));
         let mut last_gae_lam = Tensor::zeros([1], (Kind::Float, Device::Cpu));
         for idx in (0..buf_size).rev() {
             let done = if idx == buf_size - 1 {
@@ -314,10 +238,10 @@ pub fn main() {
             adv.get(idx).copy_(&last_gae_lam.squeeze());
             // print_tensor_f32("targ_val", &targ_val);
         }
+
         // shrink everything to fit batch size
         let advantages = adv.narrow(0, 0, NSTEPS * NPROCS).view([train_size, 1]);
         // we now must do view on everything we want to batch
-        // let advantages = adv.view([train_size, 1]);
         let target_vals = (&advantages + vals.narrow(0, 0, NSTEPS * NPROCS).view([train_size, 1])).to_device_(device, Kind::Float, true, false);
 
         let learn_states = states.narrow(0, 0, NSTEPS * NPROCS).view([train_size, NSTACK, obs_space]).to_device_(device, Kind::Float, true, false);
@@ -371,6 +295,7 @@ pub fn main() {
                 }));
                 kl_divs.push(tch::no_grad(|| {
                     let log_ratio = &action_log_probs - &old_log_probs_batch;
+                    // for viewing dbg values
                     // let act_log_prob_mean = f64::try_from(&action_log_probs.mean(Kind::Float)).unwrap();
                     // let old_log_probs_batch_mean = f64::try_from(&old_log_probs_batch.mean(Kind::Float)).unwrap();
                     // let log_ratio_mean = f64::try_from(&log_ratio.mean(Kind::Float).detach()).unwrap();
@@ -384,6 +309,7 @@ pub fn main() {
     
                 let value_loss = &vals.mse_loss(&targ_vals.squeeze(), tch::Reduction::Mean).squeeze();
                 let value_loss_float = f32::try_from(&value_loss.detach()).unwrap();
+                // dbg
                 // if value_loss_float > 100. {
                 //     let dbg = value_loss_float;
                 // }
@@ -426,7 +352,7 @@ pub fn main() {
             println!("update idx: {}, total eps: {:.0}, total steps: {}, clip frac avg: {}, kl div avg: {}, ent: {}, loss: {}, act loss: {}, val loss: {}",
             //  update_index, total_episodes, total_rewards / total_episodes, total_steps, clip_frac, kl_div, entropy, loss, act_l, val_l);
             update_index, total_episodes, total_steps, clip_frac, kl_div, entropy, loss, act_l, val_l);
-            total_rewards = 0.;
+            // total_rewards = 0.;
             total_episodes = 0.;
         }
         if update_index > 0 && update_index % 1000 == 0 {
@@ -437,8 +363,6 @@ pub fn main() {
         }
         // println!("\nnext set -------------------\n");
 
-        // redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
     }
     total_prog_bar.finish_and_clear();
-    // Ok(())
 }
