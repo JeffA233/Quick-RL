@@ -1,5 +1,6 @@
 pub mod models;
 pub mod algorithms;
+pub mod config;
 
 /* Proximal Policy Optimization (PPO) model.
 

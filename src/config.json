@@ -1,0 +1,47 @@
+{
+    "hyperparameters":{
+      "entropy_coef": 0.01,
+      "clip_range": 0.2,
+      "grad_clip": 0.5,
+      "lr": 5e-4,
+      "gamma": 0.99,
+      "steps_per_rollout": 682,
+      "updates": 1000000,
+      "max_model_age": 2,
+      "buffersize": 65472,
+      "optim_epochs": 20
+    },
+    "device": "cuda",  
+    "reward_file_full_path": "./rewards_test.txt",
+    "n_env": 48,
+    "n_stack": 1,
+    "tick_skip": 8,
+    "gamemodes":{
+      "num_1s": 24,
+      "num_1s_gravboost": 0,
+      "num_1s_selfplay": 24,
+      "num_2s": 0,
+      "num_2s_gravboost": 0,
+      "num_2s_selfplay": 0,
+      "num_3s": 0,
+      "num_3s_gravboost": 0,
+      "num_3s_selfplay": 0
+    },
+    "redis":{
+      "ipaddress": "localhost",
+      "username": "user1",
+      "password_env_var": "redis_user1_key",
+      "dbnum": "1"
+    },
+    "network":{
+      "custom_shape": false,
+      "actor":{
+        "num_layers": 3,
+        "layer_size": 256
+      },
+      "critic":{
+        "num_layers": 3,
+        "layer_size": 256
+      }
+    }
+  }

@@ -341,7 +341,7 @@ pub enum WorkerPacket {
 // #[pymethods]
 impl GymManager {
     // #[new]
-    pub fn new(match_nums: Vec<usize>, gravity_nums: Vec<f32>, boost_nums: Vec<f32>, self_plays: Vec<bool>, tick_skip: usize, reward_file_name: String) -> Self {
+    pub fn new(match_nums: Vec<usize>, gravity_nums: Vec<f32>, boost_nums: Vec<f32>, self_plays: Vec<bool>, tick_skip: usize, reward_file_full_path: String) -> Self {
         rocketsim_rs::init(None);
         let mut recv_vec = Vec::<Receiver<WorkerPacket>>::new();
         let mut send_vec = Vec::<Sender<ManagerPacket>>::new();
@@ -349,8 +349,9 @@ impl GymManager {
         // let mut curr_id = 0;
 
         let (reward_send, reward_recv) = bounded(20000);
-        let reward_file_loc = r"F:\Users\Jeffrey\AppData\Local\Temp";
-        let reward_file_name_full = format!(r"{}\{}.txt", reward_file_loc, reward_file_name);
+        // let reward_file_loc = r"F:\Users\Jeffrey\AppData\Local\Temp";
+        // let reward_file_name_full = format!(r"{}\{}.txt", reward_file_loc, reward_file_name);
+        let reward_file_name_full = reward_file_full_path;
         let reward_path = Path::new(&reward_file_name_full).to_owned();
         // let reward_thrd = thread::spawn(move || file_put_worker(reward_recv, reward_path));
         thread::spawn(move || file_put_worker(reward_recv, reward_path));
@@ -622,7 +623,7 @@ fn file_put_worker(receiver: Receiver<Vec<f32>>, reward_file: PathBuf) {
             let returns_local = match recv_data {
                 Ok(data) => data,
                 Err(err) => {
-                    println!("recv err in file_put_worker: {err}");
+                    println!("recv err in file_put_worker using reward_file {}: {}", reward_file.display(), err);
                     break;
                 }
             };

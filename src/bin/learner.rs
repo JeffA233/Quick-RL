@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{env, ffi::OsString, time::Duration};
 
 /* Proximal Policy Optimization (PPO) model.
 
@@ -25,7 +25,10 @@ use quick_rl::{
     //     print_tensor_vecf32
     // }
     vec_gym_env::VecGymEnv,
+    config::Configuration,
 };
+
+// use std::path::PathBuf;
 
 use redis::{
     Client, Commands,
@@ -33,52 +36,62 @@ use redis::{
 
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
 // const MULT: i64 = 12;
-const MULT: i64 = 48;
+// const MULT: i64 = 48;
 // const MULT: i64 = 1;
-const NPROCS: i64 = 2*MULT;
+// const NPROCS: i64 = 2*MULT;
 // const NPROCS: i64 = 1;
-const NSTEPS: i64 = (2048*32)/NPROCS;
+// const NSTEPS: i64 = (2048*32)/NPROCS;
 // const NSTEPS: i64 = 6;
-const NSTACK: i64 = 1;
-const UPDATES: i64 = 1000000;
-const BUFFERSIZE: i64 = NSTEPS*NPROCS;
+// const NSTACK: i64 = 1;
+// const UPDATES: i64 = 1000000;
+// const BUFFERSIZE: i64 = NSTEPS*NPROCS;
 // const OPTIM_BATCHSIZE: i64 = 6;
 // const OPTIM_BATCHSIZE: i64 = BUFFERSIZE/4;
-const OPTIM_BATCHSIZE: i64 = BUFFERSIZE;
-const OPTIM_EPOCHS: i64 = 20;
+// const OPTIM_BATCHSIZE: i64 = BUFFERSIZE;
+// const OPTIM_EPOCHS: i64 = 20;
 
 
 pub fn main() {
     // NOTE:
     // rough benchmark is ~4.26 for rew by idx 150
     // --- env setup stuff ---
-    let tick_skip = 8;
-    let entropy_coef = 0.01;
-    let clip_range = 0.2;
-    let grad_clip = 0.5;
-    let lr = 5e-4;
-    let gamma = 0.99;
-    // let device = Device::Cpu;
+    // I hate this path stuff but I'm not sure what's cleaner
+    let mut config_path = env::current_exe().unwrap();
+    config_path.pop();
+    config_path.pop();
+    config_path.pop();
+    config_path.push("src/config.json");
+    let config = match Configuration::load_configuration(config_path.as_path()) {
+        Ok(config) => config,
+        Err(error) => {
+            panic!("Error loading configuration from '{}': {}", config_path.display(), error);
+        }
+    };
+    let tick_skip = config.tick_skip;
+    let entropy_coef = config.hyperparameters.entropy_coef;
+    let clip_range = config.hyperparameters.clip_range;
+    let grad_clip = config.hyperparameters.grad_clip;
+    let lr = config.hyperparameters.lr;
+    let gamma = config.hyperparameters.gamma;
     let device = Device::cuda_if_available();
-    let reward_file_name = "rewards_test".to_owned();
+    let reward_file_full_path = config.reward_file_full_path.clone();
+    let updates = config.hyperparameters.updates;
     tch::manual_seed(0);
     tch::Cuda::manual_seed_all(0);
 
     // how old a model can be, logic is (current_ver - min_model_ver) < rollout_model_ver else discard step
-    let min_model_ver = 2;
+    let max_model_age =  config.hyperparameters.max_model_age;
 
     // configure number of agents and gamemodes
-    let num_1s = (NPROCS/2) as usize;
-    let num_1s_gravboost = 0;
-    let num_1s_selfplay = (NPROCS/2) as usize;
-    let num_2s = 0;
-    let num_2s_gravboost = 0;
-    let num_2s_selfplay = 0;
-    // let num_3s = (NPROCS/6) as usize;
-    let num_3s = 0;
-    let num_3s_gravboost = 0;
-    // let num_3s_selfplay = (NPROCS/6) as usize;
-    let num_3s_selfplay = 0;
+    let num_1s = config.gamemodes.num_1s;
+    let num_1s_gravboost = config.gamemodes.num_1s_gravboost;
+    let num_1s_selfplay = config.gamemodes.num_1s_selfplay;
+    let num_2s = config.gamemodes.num_2s;
+    let num_2s_gravboost = config.gamemodes.num_2s_gravboost;
+    let num_2s_selfplay = config.gamemodes.num_2s_selfplay;
+    let num_3s = config.gamemodes.num_3s;
+    let num_3s_gravboost = config.gamemodes.num_3s_gravboost;
+    let num_3s_selfplay = config.gamemodes.num_3s_selfplay;
 
     let mut match_nums = Vec::new();
     match_nums.extend(vec![2; num_1s]);
@@ -127,17 +140,26 @@ pub fn main() {
         bar
     };
     let multi_prog_bar_total = MultiProgress::new();
-    let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(UPDATES as u64));
+    let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(updates as u64));
 
     // make env
-    // TODO: can we get this from the worker or something so that we don't have to make the env in the learner?
-    let env = VecGymEnv::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_name);
+    let env = VecGymEnv::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_full_path);
     println!("action space: {}", env.action_space());
     let obs_space = env.observation_space()[1];
     println!("observation space: {:?}", obs_space);
 
     // get Redis connection
-    let redis_str = "redis://127.0.0.1/";
+    let db = config.redis.dbnum.clone();
+    let password = if !config.redis.password_env_var.is_empty() {
+        env::var_os(&config.redis.password_env_var).expect("Failed to get password") 
+        }
+        else{
+            OsString::from("")
+        };
+    let password_str = password.to_str().expect("Failed to convert password to str");
+    let redis_address = config.redis.ipaddress;
+    let redis_str = format!("redis://{}:{}@{}/{}", config.redis.username, password_str, redis_address, db);
+    let redis_str = redis_str.as_str();
     let redis_client = Client::open(redis_str).unwrap();
     let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
 
@@ -146,10 +168,15 @@ pub fn main() {
     // setup actor and critic
     let vs_act = nn::VarStore::new(device);
     let vs_critic = nn::VarStore::new(device);
-    let init_config = Some(LinearConfig { ws_init: init::Init::Orthogonal { gain: 2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true });
-    let act_config = LayerConfig::new(vec![256; 3], obs_space, Some(env.action_space()));
+    let init_config = Some(LinearConfig { ws_init: init::Init::Orthogonal { gain:  2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true });
+    let num_layers = config.network.actor.num_layers;
+    let layer_size = config.network.actor.layer_size;
+    let act_config = LayerConfig::new(vec![layer_size; num_layers], obs_space, Some(env.action_space()));
     let mut act_model = Actor::new(&vs_act.root(), act_config.clone(), init_config);
-    let critic_config = LayerConfig::new(vec![256; 3], obs_space, None);
+
+    let num_layers = config.network.critic.num_layers;
+    let layer_size = config.network.critic.layer_size;
+    let critic_config = LayerConfig::new(vec![layer_size;  num_layers], obs_space, None);
     let mut critic_model = Critic::new(&vs_critic.root(), critic_config, init_config);
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
@@ -168,10 +195,15 @@ pub fn main() {
     // let mut total_rewards = 0f64;
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
-
-    let train_size = NSTEPS * NPROCS;
+    let n_steps = config.hyperparameters.steps_per_rollout;
+    let n_procs = config.n_env;
+    let train_size = n_steps * n_procs;
+    let updates = config.hyperparameters.updates;
+    let buffersize = config.hyperparameters.buffersize;
+    let optim_batchsize = buffersize as i64;
+    let optim_epochs = config.hyperparameters.optim_epochs;
     // start of learning loops
-    for update_index in 0..UPDATES {
+    for update_index in 0..updates {
         let mut act_save_stream = ByteBuffer::new();
         // TODO: consider parsing this result
         vs_act.save_to_stream(&mut act_save_stream).unwrap();
@@ -186,9 +218,9 @@ pub fn main() {
 
         redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
 
-        total_steps += NSTEPS * NPROCS;
+        total_steps += n_steps * n_procs;
 
-        let mut exp_store = buffer_host.get_experience(BUFFERSIZE as usize, model_ver-min_model_ver);
+        let mut exp_store = buffer_host.get_experience(buffersize, model_ver-max_model_age);
         println!("consumed timesteps");
         redis_con.set::<&str, bool, ()>("gather_pause", true).unwrap();
         exp_store.s_states.push(exp_store.terminal_obs);
@@ -240,19 +272,19 @@ pub fn main() {
         }
 
         // shrink everything to fit batch size
-        let advantages = adv.narrow(0, 0, NSTEPS * NPROCS).view([train_size, 1]);
+        let advantages = adv.narrow(0, 0, n_steps * n_procs).view([train_size, 1]);
         // we now must do view on everything we want to batch
-        let target_vals = (&advantages + vals.narrow(0, 0, NSTEPS * NPROCS).view([train_size, 1])).to_device_(device, Kind::Float, true, false);
+        let target_vals = (&advantages + vals.narrow(0, 0, n_steps * n_procs).view([train_size, 1])).to_device_(device, Kind::Float, true, false);
 
-        let learn_states = states.narrow(0, 0, NSTEPS * NPROCS).view([train_size, NSTACK, obs_space]).to_device_(device, Kind::Float, true, false);
+        let learn_states = states.narrow(0, 0, n_steps * n_procs).view([train_size, config.n_stack, obs_space]).to_device_(device, Kind::Float, true, false);
 
         // norm advantages
         let advantages = ((&advantages - &advantages.mean(Kind::Float)) / (&advantages.std(true) + 1e-8)).to_device_(device, Kind::Float, true, false);
         
-        let actions = s_actions.narrow(0, 0, NSTEPS * NPROCS).view([train_size]).to_device_(device, Kind::Int64, true, false);
-        let old_log_probs = s_log_probs.narrow(0, 0, NSTEPS * NPROCS).view([train_size]).to_device_(device, Kind::Float, true, false);
+        let actions = s_actions.narrow(0, 0, n_steps * n_procs).view([train_size]).to_device_(device, Kind::Int64, true, false);
+        let old_log_probs = s_log_probs.narrow(0, 0, n_steps * n_procs).view([train_size]).to_device_(device, Kind::Float, true, false);
 
-        let prog_bar = multi_prog_bar_total.add(prog_bar_func((OPTIM_EPOCHS) as u64));
+        let prog_bar = multi_prog_bar_total.add(prog_bar_func((optim_epochs) as u64));
         prog_bar.set_message("doing epochs");
         // stats
         let mut clip_fracs = Vec::new();
@@ -262,13 +294,13 @@ pub fn main() {
         let mut act_loss = Vec::new();
         let mut val_loss = Vec::new();
 
-        let optim_indexes = Tensor::randint(train_size, [OPTIM_EPOCHS, BUFFERSIZE], (Kind::Int64, device));
+        let optim_indexes = Tensor::randint(train_size, [optim_epochs, buffersize as i64], (Kind::Int64, device));
         // learner epoch loop
-        for epoch in 0..OPTIM_EPOCHS {
+        for epoch in 0..optim_epochs {
             prog_bar.inc(1);
             let batch_indexes = optim_indexes.get(epoch);
-            for batch_start_index in (0..BUFFERSIZE).step_by(OPTIM_BATCHSIZE as usize) {
-                let buffer_indexes = batch_indexes.slice(0, batch_start_index, batch_start_index + OPTIM_BATCHSIZE, 1);
+            for batch_start_index in (0..buffersize as i64).step_by(optim_batchsize as usize) {
+                let buffer_indexes = batch_indexes.slice(0, batch_start_index, batch_start_index + optim_batchsize, 1);
                 let states = learn_states.index_select(0, &buffer_indexes);
                 let actions = actions.index_select(0, &buffer_indexes);
                 // print_tensor_vecf32("batch actions", &actions);
