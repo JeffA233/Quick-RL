@@ -42,7 +42,8 @@ const UPDATES: i64 = 1000000;
 
 pub fn main() {
     // NOTE:
-    // rough benchmark is ~4.26 for rew by idx 150
+    // rough benchmark for reward is ~4.26 for rew (which is displayed only in the worker for now) by update idx 150 according to the learner side
+    // this isn't quite reached with async for whatever reason(s)
     // --- env setup stuff ---
     let tick_skip = 8;
     // let device = Device::Cpu;

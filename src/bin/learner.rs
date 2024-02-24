@@ -50,8 +50,9 @@ const OPTIM_EPOCHS: i64 = 20;
 
 pub fn main() {
     // NOTE:
-    // rough benchmark is ~4.26 for rew by idx 150
-    // --- env setup stuff ---
+    // rough benchmark for reward is ~4.26 for rew by update idx 150 according to the learner side
+    // this isn't quite reached with async for whatever reason(s)
+    // --- env/PPO setup stuff ---
     let tick_skip = 8;
     let entropy_coef = 0.01;
     let clip_range = 0.2;
@@ -65,6 +66,7 @@ pub fn main() {
     tch::Cuda::manual_seed_all(0);
 
     // how old a model can be, logic is (current_ver - min_model_ver) < rollout_model_ver else discard step
+    // TL;DR 1 means it could be data from the last model theoretically and so on
     let min_model_ver = 2;
 
     // configure number of agents and gamemodes
@@ -239,7 +241,8 @@ pub fn main() {
             // print_tensor_f32("targ_val", &targ_val);
         }
 
-        // shrink everything to fit batch size
+        // shrink everything to fit batch size if necessary
+        // we want to do this after GAE in order to make sure we use the full rollout data that we are given for a more accurate GAE calc
         let advantages = adv.narrow(0, 0, NSTEPS * NPROCS).view([train_size, 1]);
         // we now must do view on everything we want to batch
         let target_vals = (&advantages + vals.narrow(0, 0, NSTEPS * NPROCS).view([train_size, 1])).to_device_(device, Kind::Float, true, false);
@@ -254,7 +257,7 @@ pub fn main() {
 
         let prog_bar = multi_prog_bar_total.add(prog_bar_func((OPTIM_EPOCHS) as u64));
         prog_bar.set_message("doing epochs");
-        // stats
+        // learner metrics
         let mut clip_fracs = Vec::new();
         let mut kl_divs = Vec::new();
         let mut entropys = Vec::new();
@@ -262,6 +265,7 @@ pub fn main() {
         let mut act_loss = Vec::new();
         let mut val_loss = Vec::new();
 
+        // generates randomized batch indices for training
         let optim_indexes = Tensor::randint(train_size, [OPTIM_EPOCHS, BUFFERSIZE], (Kind::Int64, device));
         // learner epoch loop
         for epoch in 0..OPTIM_EPOCHS {
