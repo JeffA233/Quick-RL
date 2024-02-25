@@ -75,14 +75,22 @@ pub struct Redis {
 #[derive(Deserialize)]
 pub struct Network {
     pub custom_shape: bool,
+    pub act_func: String,
     pub actor: LayerConfig,
     pub critic: LayerConfig,
+    pub custom_actor: CustomLayerConfig,
+    pub custom_critic: CustomLayerConfig,
 }
 
 #[derive(Deserialize)]
 pub struct LayerConfig {
     pub num_layers: usize,
     pub layer_size: i64,
+}
+
+#[derive(Deserialize)]
+pub struct CustomLayerConfig {
+    pub layer_vec: Vec<i64>
 }
 
 impl Configuration {

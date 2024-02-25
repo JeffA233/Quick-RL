@@ -31,13 +31,19 @@ pub struct Actor {
 }
 
 impl Actor {
-    pub fn new(p: &nn::Path, layers_config: LayerConfig, config: Option<LinearConfig>) -> Self {
+    pub fn new(p: &nn::Path, layers_config: LayerConfig, config: Option<LinearConfig>, act_func: String) -> Self {
         assert!(layers_config.layer_sizes.len() > 2, "layer count must be at least 3 for actor");
         // default LinearConfig with kaiming, identical to calling LinearConfig::default() for now
         let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: Some(init::Init::Const(0.)), bias: true });
         // define layer functions
         let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, lin_conf);
-        let activation_func = |xs: &Tensor| xs.relu();
+        let activation_func = if act_func.to_lowercase() == "relu" {|xs: &Tensor| xs.relu()}
+            else if act_func.to_lowercase() == "leakyrelu"{
+                |xs: &Tensor| xs.leaky_relu()
+            }
+            else{
+                panic!("Activation function {} is not supported. Please check your config", act_func)
+            };
         // start building network
         let mut seq = nn::seq();
         seq = seq.add(layer_func(layers_config.n_in, layers_config.layer_sizes[0], String::from("al0")));

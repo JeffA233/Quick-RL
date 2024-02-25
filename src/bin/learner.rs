@@ -73,7 +73,9 @@ pub fn main() {
     let grad_clip = config.hyperparameters.grad_clip;
     let lr = config.hyperparameters.lr;
     let gamma = config.hyperparameters.gamma;
-    let device = Device::cuda_if_available();
+    let device = if config.device.to_lowercase() == "cuda" {Device::cuda_if_available()} else{
+            Device::Cpu
+        };
     let reward_file_full_path = config.reward_file_full_path.clone();
     let updates = config.hyperparameters.updates;
     tch::manual_seed(0);
@@ -169,10 +171,14 @@ pub fn main() {
     let vs_act = nn::VarStore::new(device);
     let vs_critic = nn::VarStore::new(device);
     let init_config = Some(LinearConfig { ws_init: init::Init::Orthogonal { gain:  2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true });
-    let num_layers = config.network.actor.num_layers;
-    let layer_size = config.network.actor.layer_size;
-    let act_config = LayerConfig::new(vec![layer_size; num_layers], obs_space, Some(env.action_space()));
-    let mut act_model = Actor::new(&vs_act.root(), act_config.clone(), init_config);
+    let layer_vec = if !config.network.custom_shape{
+        vec![config.network.actor.layer_size; config.network.actor.num_layers]
+        }
+        else{
+            config.network.custom_actor.layer_vec
+        };
+    let act_config = LayerConfig::new(layer_vec, obs_space, Some(env.action_space()));
+    let mut act_model = Actor::new(&vs_act.root(), act_config.clone(), init_config, config.network.act_func);
 
     let num_layers = config.network.critic.num_layers;
     let layer_size = config.network.critic.layer_size;

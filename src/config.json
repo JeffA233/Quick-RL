@@ -34,7 +34,7 @@
       "dbnum": "1"
     },
     "network":{
-      "custom_shape": false,
+      "act_func": "Relu",
       "actor":{
         "num_layers": 3,
         "layer_size": 256
@@ -42,6 +42,13 @@
       "critic":{
         "num_layers": 3,
         "layer_size": 256
+      },
+      "custom_shape": true,
+      "custom_actor":{
+        "layer_vec": [256, 256, 512, 512, 256]
+      },
+      "custom_critic":{
+        "layer_vec": [256, 256, 512, 512, 256]
       }
     }
   }
