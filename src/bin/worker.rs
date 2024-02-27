@@ -172,7 +172,7 @@ pub fn main() {
         total_steps += NSTEPS * NPROCS;
 
         if update_index > 0 && update_index % 25 == 0 {
-            println!("update idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}",
+            println!("worker loop idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}",
              update_index, total_episodes, total_rewards / total_episodes, total_steps);
             total_rewards = 0.;
             total_episodes = 0.;

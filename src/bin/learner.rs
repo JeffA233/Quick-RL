@@ -157,9 +157,11 @@ pub fn main() {
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
     redis_con.set::<&str, i64, ()>("model_ver", 0).unwrap();
-    // use this flag to pause episode gathering if on the same PC, just testing for now
-    redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
     let mut model_ver: i64 = 0;
+    
+    // use this flag to pause episode gathering if on the same PC, just testing for now
+    // we should make this toggleable probably
+    redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
 
     // send layer config to worker(s) for tch/libtorch usage
     let mut s = flexbuffers::FlexbufferSerializer::new();
