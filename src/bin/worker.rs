@@ -194,7 +194,6 @@ pub fn main() {
             &mut sum_rewards, 
             &mut total_rewards, 
             &mut total_episodes,
-            config.network.act_func.clone(),
         );
 
         total_steps += n_steps * n_procs;

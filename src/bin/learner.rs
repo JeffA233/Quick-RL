@@ -177,12 +177,12 @@ pub fn main() {
         else{
             config.network.custom_actor.layer_vec
         };
-    let act_config = LayerConfig::new(layer_vec, obs_space, Some(env.action_space()));
-    let mut act_model = Actor::new(&vs_act.root(), act_config.clone(), init_config, config.network.act_func);
+    let act_config = LayerConfig::new(layer_vec, obs_space, Some(env.action_space()), config.network.act_func.clone());
+    let mut act_model = Actor::new(&vs_act.root(), act_config.clone(), init_config);
 
     let num_layers = config.network.critic.num_layers;
     let layer_size = config.network.critic.layer_size;
-    let critic_config = LayerConfig::new(vec![layer_size;  num_layers], obs_space, None);
+    let critic_config = LayerConfig::new(vec![layer_size;  num_layers], obs_space, None, config.network.act_func);
     let mut critic_model = Critic::new(&vs_critic.root(), critic_config, init_config);
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();

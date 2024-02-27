@@ -33,7 +33,6 @@ pub fn get_experience(
     sum_rewards: &mut [f64],
     total_rewards: &mut f64,
     total_episodes: &mut f64,
-    act_func: String,
 ) {
     let obs_space = env.observation_space()[1];
 
@@ -42,7 +41,7 @@ pub fn get_experience(
     prog_bar.set_message("getting rollouts");
     // setup actor model so we can later load the data (we only init the parameters here)
     let mut p = nn::VarStore::new(device);
-    let mut act_model = Actor::new(&p.root(), act_model_config, None, act_func);
+    let mut act_model = Actor::new(&p.root(), act_model_config, None);
 
     let mut obs_store = Tensor::zeros([nprocs, obs_space], (Kind::Float, device));
 

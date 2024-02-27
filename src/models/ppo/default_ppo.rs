@@ -8,14 +8,16 @@ pub struct LayerConfig {
     layer_sizes: Vec<i64>,
     n_in: i64,
     n_out: Option<i64>,
+    act_func: String,
 }
 
 impl LayerConfig {
-    pub fn new(layer_sizes: Vec<i64>, n_in: i64, n_out: Option<i64>) -> Self {
+    pub fn new(layer_sizes: Vec<i64>, n_in: i64, n_out: Option<i64>, act_func: String) -> Self {
         Self {
             layer_sizes,
             n_in,
-            n_out
+            n_out,
+            act_func
         }
     }
 }
@@ -31,18 +33,18 @@ pub struct Actor {
 }
 
 impl Actor {
-    pub fn new(p: &nn::Path, layers_config: LayerConfig, config: Option<LinearConfig>, act_func: String) -> Self {
+    pub fn new(p: &nn::Path, layers_config: LayerConfig, config: Option<LinearConfig>) -> Self {
         assert!(layers_config.layer_sizes.len() > 2, "layer count must be at least 3 for actor");
         // default LinearConfig with kaiming, identical to calling LinearConfig::default() for now
         let lin_conf = config.unwrap_or(LinearConfig { ws_init: init::DEFAULT_KAIMING_NORMAL, bs_init: Some(init::Init::Const(0.)), bias: true });
         // define layer functions
         let layer_func = |in_dim: i64, out_dim: i64, layer_str: String| nn::linear(p / layer_str, in_dim, out_dim, lin_conf);
-        let activation_func = if act_func.to_lowercase() == "relu" {|xs: &Tensor| xs.relu()}
-            else if act_func.to_lowercase() == "leakyrelu"{
+        let activation_func = if layers_config.act_func.to_lowercase() == "relu" {|xs: &Tensor| xs.relu()}
+            else if layers_config.act_func.to_lowercase() == "leakyrelu"{
                 |xs: &Tensor| xs.leaky_relu()
             }
             else{
-                panic!("Activation function {} is not supported. Please check your config", act_func)
+                panic!("Activation function {} is not supported. Please check your config", layers_config.act_func)
             };
         // start building network
         let mut seq = nn::seq();
