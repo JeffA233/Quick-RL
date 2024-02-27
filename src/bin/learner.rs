@@ -158,7 +158,7 @@ pub fn main() {
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
     let gae_calc = GAECalc::new(Some(gamma), Some(lambda));
-    let train_size = NSTEPS * NPROCS;
+    let train_size = BUFFERSIZE;
     let ppo_learner = PPOLearner::new(OPTIM_EPOCHS, OPTIM_BATCHSIZE as usize, clip_range, entropy_coef, grad_clip, device, train_size);
 
     redis_con.set::<&str, i64, ()>("model_ver", 0).unwrap();
@@ -178,7 +178,6 @@ pub fn main() {
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
 
-    // let train_size = NSTEPS * NPROCS;
     // start of learning loops
     for update_index in 0..UPDATES {
         let mut act_save_stream = ByteBuffer::new();

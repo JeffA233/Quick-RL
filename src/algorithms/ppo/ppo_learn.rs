@@ -67,11 +67,12 @@ impl PPOLearner {
         let mut val_loss = Vec::new();
 
         // generates randomized batch indices for training
-        let optim_indexes = Tensor::randint(self.total_buffer_size, [self.n_epochs, self.total_buffer_size], (Kind::Int64, self.device));
+        // let optim_indexes = Tensor::randint(self.total_buffer_size, [self.n_epochs, self.total_buffer_size], (Kind::Int64, self.device));
         // learner epoch loop
-        for epoch in 0..self.n_epochs {
+        for _epoch in 0..self.n_epochs {
             prog_bar.inc(1);
-            let batch_indexes = optim_indexes.get(epoch);
+            // let batch_indexes = optim_indexes.get(epoch);
+            let batch_indexes = Tensor::randperm(self.total_buffer_size, (Kind::Int64, self.device));
             for batch_start_index in (0..self.total_buffer_size).step_by(self.optim_batch_size) {
                 let buffer_indexes = batch_indexes.slice(0, batch_start_index, batch_start_index + self.optim_batch_size as i64, 1);
                 let states = learn_states.index_select(0, &buffer_indexes);
