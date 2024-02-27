@@ -17,8 +17,8 @@ use serde::Serialize;
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
 use quick_rl::{
-    algorithms::common_utils::{GAECalc, rollout_buffer::rollout_buffer_host::RolloutBufferHost}, 
-    models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
+    algorithms::{common_utils::{rollout_buffer::rollout_buffer_host::RolloutBufferHost, GAECalc}, ppo::ppo_learn::PPOLearner}, 
+    models::{model_base::Model, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
     // tch_utils::dbg_funcs::{
     //     print_tensor_2df32, 
     //     print_tensor_noval, 
@@ -158,6 +158,8 @@ pub fn main() {
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
     let gae_calc = GAECalc::new(Some(gamma), Some(lambda));
+    let train_size = NSTEPS * NPROCS;
+    let ppo_learner = PPOLearner::new(OPTIM_EPOCHS, OPTIM_BATCHSIZE as usize, clip_range, entropy_coef, grad_clip, device, train_size);
 
     redis_con.set::<&str, i64, ()>("model_ver", 0).unwrap();
     let mut model_ver: i64 = 0;
@@ -176,7 +178,7 @@ pub fn main() {
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
 
-    let train_size = NSTEPS * NPROCS;
+    // let train_size = NSTEPS * NPROCS;
     // start of learning loops
     for update_index in 0..UPDATES {
         let mut act_save_stream = ByteBuffer::new();
@@ -196,7 +198,7 @@ pub fn main() {
         total_steps += NSTEPS * NPROCS;
 
         let mut exp_store = buffer_host.get_experience(BUFFERSIZE as usize, model_ver-min_model_ver);
-        println!("consumed timesteps");
+        println!("gathered rollouts");
         redis_con.set::<&str, bool, ()>("gather_pause", true).unwrap();
         exp_store.s_states.push(exp_store.terminal_obs);
 
@@ -237,82 +239,96 @@ pub fn main() {
         let old_log_probs = s_log_probs.narrow(0, 0, NSTEPS * NPROCS).view([train_size]).to_device_(device, Kind::Float, true, false);
 
         let prog_bar = multi_prog_bar_total.add(prog_bar_func((OPTIM_EPOCHS) as u64));
-        prog_bar.set_message("doing epochs");
-        // learner metrics
-        let mut clip_fracs = Vec::new();
-        let mut kl_divs = Vec::new();
-        let mut entropys = Vec::new();
-        let mut losses = Vec::new();
-        let mut act_loss = Vec::new();
-        let mut val_loss = Vec::new();
 
-        // generates randomized batch indices for training
-        let optim_indexes = Tensor::randint(train_size, [OPTIM_EPOCHS, BUFFERSIZE], (Kind::Int64, device));
-        // learner epoch loop
-        for epoch in 0..OPTIM_EPOCHS {
-            prog_bar.inc(1);
-            let batch_indexes = optim_indexes.get(epoch);
-            for batch_start_index in (0..BUFFERSIZE).step_by(OPTIM_BATCHSIZE as usize) {
-                let buffer_indexes = batch_indexes.slice(0, batch_start_index, batch_start_index + OPTIM_BATCHSIZE, 1);
-                let states = learn_states.index_select(0, &buffer_indexes);
-                let actions = actions.index_select(0, &buffer_indexes);
-                // print_tensor_vecf32("batch actions", &actions);
-                let advs = advantages.index_select(0, &buffer_indexes).squeeze();
-                // print_tensor_vecf32("batch advantages", &advs);
-                let targ_vals = target_vals.index_select(0, &buffer_indexes).squeeze();
-                // print_tensor_vecf32("batch targ vals", &targ_vals);
-                let old_log_probs_batch = old_log_probs.index_select(0, &buffer_indexes).squeeze();
-                // print_tensor_vecf32("batch old log probs", &old_log_probs_batch);
-                let (action_log_probs, dist_entropy) = act_model.get_prob_entr(&states, &actions);
-                let vals = critic_model.forward(&states).squeeze();
-                // // print_tensor_vecf32("batch vals", &vals);
-                let dist_entropy_float = tch::no_grad(|| {f32::try_from(&dist_entropy.detach()).unwrap()});
-                entropys.push(dist_entropy_float);
+        let (clip_fracs, kl_divs, entropys, losses, act_loss, val_loss) = 
+            ppo_learner.do_calc(
+                &mut act_model, 
+                &mut opt_act, 
+                &mut critic_model, 
+                &mut opt_critic, 
+                &actions, 
+                &advantages, 
+                &target_vals, 
+                &old_log_probs, 
+                &learn_states, 
+                &prog_bar
+            );
+        // prog_bar.set_message("doing epochs");
+        // // learner metrics
+        // let mut clip_fracs = Vec::new();
+        // let mut kl_divs = Vec::new();
+        // let mut entropys = Vec::new();
+        // let mut losses = Vec::new();
+        // let mut act_loss = Vec::new();
+        // let mut val_loss = Vec::new();
+
+        // // generates randomized batch indices for training
+        // let optim_indexes = Tensor::randint(train_size, [OPTIM_EPOCHS, BUFFERSIZE], (Kind::Int64, device));
+        // // learner epoch loop
+        // for epoch in 0..OPTIM_EPOCHS {
+        //     prog_bar.inc(1);
+        //     let batch_indexes = optim_indexes.get(epoch);
+        //     for batch_start_index in (0..BUFFERSIZE).step_by(OPTIM_BATCHSIZE as usize) {
+        //         let buffer_indexes = batch_indexes.slice(0, batch_start_index, batch_start_index + OPTIM_BATCHSIZE, 1);
+        //         let states = learn_states.index_select(0, &buffer_indexes);
+        //         let actions = actions.index_select(0, &buffer_indexes);
+        //         // print_tensor_vecf32("batch actions", &actions);
+        //         let advs = advantages.index_select(0, &buffer_indexes).squeeze();
+        //         // print_tensor_vecf32("batch advantages", &advs);
+        //         let targ_vals = target_vals.index_select(0, &buffer_indexes).squeeze();
+        //         // print_tensor_vecf32("batch targ vals", &targ_vals);
+        //         let old_log_probs_batch = old_log_probs.index_select(0, &buffer_indexes).squeeze();
+        //         // print_tensor_vecf32("batch old log probs", &old_log_probs_batch);
+        //         let (action_log_probs, dist_entropy) = act_model.get_prob_entr(&states, &actions);
+        //         let vals = critic_model.forward(&states).squeeze();
+        //         // // print_tensor_vecf32("batch vals", &vals);
+        //         let dist_entropy_float = tch::no_grad(|| {f32::try_from(&dist_entropy.detach()).unwrap()});
+        //         entropys.push(dist_entropy_float);
     
-                // PPO ratio
-                let ratio = (&action_log_probs - &old_log_probs_batch).exp().squeeze();
-                // print_tensor_vecf32("ratio", &ratio);
-                let clip_ratio = ratio.clamp(1.0 - clip_range, 1.0 + clip_range);
-                // print_tensor_vecf32("clip ratio", &clip_ratio);
-                clip_fracs.push(tch::no_grad(|| {
-                    let est = ((&ratio - 1.).abs().greater(clip_range).to_kind(Kind::Float)).mean(Kind::Float);
-                    f32::try_from(&est.detach().to(Device::Cpu)).unwrap()
-                }));
-                kl_divs.push(tch::no_grad(|| {
-                    let log_ratio = &action_log_probs - &old_log_probs_batch;
-                    // for viewing dbg values
-                    // let act_log_prob_mean = f64::try_from(&action_log_probs.mean(Kind::Float)).unwrap();
-                    // let old_log_probs_batch_mean = f64::try_from(&old_log_probs_batch.mean(Kind::Float)).unwrap();
-                    // let log_ratio_mean = f64::try_from(&log_ratio.mean(Kind::Float).detach()).unwrap();
-                    let kl = (log_ratio.exp() - 1.) - log_ratio;
-                    // for dbg
-                    // act_log_prob_mean;
-                    // old_log_probs_batch_mean;
-                    // log_ratio_mean;
-                    f32::try_from(kl.mean(Kind::Float).detach().to(Device::Cpu)).unwrap()
-                }));
+        //         // PPO ratio
+        //         let ratio = (&action_log_probs - &old_log_probs_batch).exp().squeeze();
+        //         // print_tensor_vecf32("ratio", &ratio);
+        //         let clip_ratio = ratio.clamp(1.0 - clip_range, 1.0 + clip_range);
+        //         // print_tensor_vecf32("clip ratio", &clip_ratio);
+        //         clip_fracs.push(tch::no_grad(|| {
+        //             let est = ((&ratio - 1.).abs().greater(clip_range).to_kind(Kind::Float)).mean(Kind::Float);
+        //             f32::try_from(&est.detach().to(Device::Cpu)).unwrap()
+        //         }));
+        //         kl_divs.push(tch::no_grad(|| {
+        //             let log_ratio = &action_log_probs - &old_log_probs_batch;
+        //             // for viewing dbg values
+        //             // let act_log_prob_mean = f64::try_from(&action_log_probs.mean(Kind::Float)).unwrap();
+        //             // let old_log_probs_batch_mean = f64::try_from(&old_log_probs_batch.mean(Kind::Float)).unwrap();
+        //             // let log_ratio_mean = f64::try_from(&log_ratio.mean(Kind::Float).detach()).unwrap();
+        //             let kl = (log_ratio.exp() - 1.) - log_ratio;
+        //             // for dbg
+        //             // act_log_prob_mean;
+        //             // old_log_probs_batch_mean;
+        //             // log_ratio_mean;
+        //             f32::try_from(kl.mean(Kind::Float).detach().to(Device::Cpu)).unwrap()
+        //         }));
     
-                let value_loss = &vals.mse_loss(&targ_vals.squeeze(), tch::Reduction::Mean).squeeze();
-                let value_loss_float = f32::try_from(&value_loss.detach()).unwrap();
-                // dbg
-                // if value_loss_float > 100. {
-                //     let dbg = value_loss_float;
-                // }
-                val_loss.push(value_loss_float);
+        //         let value_loss = &vals.mse_loss(&targ_vals.squeeze(), tch::Reduction::Mean).squeeze();
+        //         let value_loss_float = f32::try_from(&value_loss.detach()).unwrap();
+        //         // dbg
+        //         // if value_loss_float > 100. {
+        //         //     let dbg = value_loss_float;
+        //         // }
+        //         val_loss.push(value_loss_float);
     
-                let action_loss = -((&ratio * &advs).min_other(&(&clip_ratio * &advs)).mean(Kind::Float));
-                let action_loss_float = f32::try_from(&action_loss.detach()).unwrap();
-                act_loss.push(action_loss_float);
+        //         let action_loss = -((&ratio * &advs).min_other(&(&clip_ratio * &advs)).mean(Kind::Float));
+        //         let action_loss_float = f32::try_from(&action_loss.detach()).unwrap();
+        //         act_loss.push(action_loss_float);
                 
-                // only for stats purposes at this time
-                let loss = value_loss + &action_loss - &dist_entropy * entropy_coef;
+        //         // only for stats purposes at this time
+        //         let loss = value_loss + &action_loss - &dist_entropy * entropy_coef;
 
-                let full_act_loss = action_loss - dist_entropy * entropy_coef;
-                losses.push(f32::try_from(&loss.detach()).unwrap());
-                opt_act.backward_step_clip_norm(&full_act_loss, grad_clip);
-                opt_critic.backward_step_clip_norm(value_loss, grad_clip);
-            }
-        }
+        //         let full_act_loss = action_loss - dist_entropy * entropy_coef;
+        //         losses.push(f32::try_from(&loss.detach()).unwrap());
+        //         opt_act.backward_step_clip_norm(&full_act_loss, grad_clip);
+        //         opt_critic.backward_step_clip_norm(value_loss, grad_clip);
+        //     }
+        // }
         prog_bar.finish_and_clear();
         if update_index > 0 && update_index % 25 == 0 {
             let tot = clip_fracs.iter().sum::<f32>();
