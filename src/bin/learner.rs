@@ -17,7 +17,7 @@ use serde::Serialize;
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
 use quick_rl::{
-    algorithms::common_utils::rollout_buffer::rollout_buffer_host::RolloutBufferHost, 
+    algorithms::common_utils::{GAECalc, rollout_buffer::rollout_buffer_host::RolloutBufferHost}, 
     models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
     // tch_utils::dbg_funcs::{
     //     print_tensor_2df32, 
@@ -59,6 +59,7 @@ pub fn main() {
     let grad_clip = 0.5;
     let lr = 5e-4;
     let gamma = 0.99;
+    let lambda = 0.95;
     // let device = Device::Cpu;
     let device = Device::cuda_if_available();
     let reward_file_name = "rewards_test".to_owned();
@@ -156,6 +157,8 @@ pub fn main() {
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
+    let gae_calc = GAECalc::new(Some(gamma), Some(lambda));
+
     redis_con.set::<&str, i64, ()>("model_ver", 0).unwrap();
     let mut model_ver: i64 = 0;
     
@@ -212,36 +215,12 @@ pub fn main() {
         // print_tensor_noval("actions", &s_actions);
         // print_tensor_noval("dones", &dones_f);
         // print_tensor_noval("log_probs", &s_log_probs);
-        let buf_size = s_rewards.size()[0];
         // print_tensor_noval("states after view", &states);
 
         // compute gae
-        let adv = Tensor::zeros([buf_size], (Kind::Float, Device::Cpu));
         let vals = tch::no_grad(|| critic_model.forward(&states.to_device_(device, Kind::Float, true, false))).squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
+        let adv = gae_calc.calc(&s_rewards, &dones_f, &vals);
         // print_tensor_noval("vals from critic", &vals);
-        let mut last_gae_lam = Tensor::zeros([1], (Kind::Float, Device::Cpu));
-        for idx in (0..buf_size).rev() {
-            let done = if idx == buf_size - 1 {
-                1. - dones_f.get(idx)
-            } else {
-                1. - dones_f.get(idx + 1)
-            };
-            let next_val = vals.get(idx + 1);
-            // print_tensor_f32("val", &val_idx);
-            let rew = s_rewards.get(idx);
-            // print_tensor_f32("rew", &rew);
-            // print_tensor_noval("rew", &rew);
-            // print_tensor_noval("next_val", &next_val);
-            // print_tensor_noval("done", &done);
-            let pred_ret = rew + gamma * &next_val * &done;
-            // print_tensor_f32("pred_ret", &pred_ret);
-            let delta = &pred_ret - &vals.get(idx);
-            // print_tensor_f32("delta", &delta);
-            last_gae_lam = delta + gamma * 0.95 * done * last_gae_lam;
-            // print_tensor_f32("last_gae_lam", &last_gae_lam);
-            adv.get(idx).copy_(&last_gae_lam.squeeze());
-            // print_tensor_f32("targ_val", &targ_val);
-        }
 
         // shrink everything to fit batch size if necessary
         // we want to do this after GAE in order to make sure we use the full rollout data that we are given for a more accurate GAE calc
