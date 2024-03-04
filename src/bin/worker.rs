@@ -18,7 +18,7 @@ use tch::Device;
 use quick_rl::{
     algorithms::common_utils::{
         gather_experience::ppo_gather::get_experience, 
-        rollout_buffer::rollout_buffer_worker::buffer_worker
+        rollout_buffer::rollout_buffer_worker::{buffer_worker, RedisWorkerBackend, RolloutWorkerBackend}
     }, config::Configuration, models::ppo::default_ppo::LayerConfig, vec_gym_env::VecGymEnv
 };
 
@@ -148,16 +148,19 @@ pub fn main() {
     let password_str = password.to_str().expect("Failed to convert password to str");
     let redis_address = config.redis.ipaddress;
     let redis_str = format!("redis://{}:{}@{}/{}", config.redis.username, password_str, redis_address, db);
-    let redis_str = redis_str.as_str();
-    let redis_client = Client::open(redis_str).unwrap();
-    let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
+    let mut backend = RedisWorkerBackend::new(redis_str.clone());
+    // let backend_con = RolloutWorkerRedis::new()
+
 
     // moved here from gather_experience since otherwise we have to wait for full episodes to be submitted which is bad
     let (send_local, rx) = bounded(5000);
     let worker_url = redis_str.to_owned();
-    let join_hand = thread::spawn(move || buffer_worker(rx, worker_url, obs_space, n_steps, n_procs as usize));
-
-    let act_config_data = redis_con.get::<&str, Vec<u8>>("actor_structure").unwrap();
+    println!("we're about to spawn the thread");
+    thread::spawn(move || {
+        buffer_worker(rx, move || RedisWorkerBackend::new(worker_url.clone()), obs_space, n_steps, n_procs as usize);
+    });
+    
+    let act_config_data = backend.get_key_value_raw("actor_structure").unwrap();
     let flex_read = flexbuffers::Reader::get_root(act_config_data.as_slice()).unwrap();
     let act_config = LayerConfig::deserialize(flex_read).unwrap();
 
@@ -173,7 +176,7 @@ pub fn main() {
     loop {
         // TODO: in case we are also trying to learn and both are on GPU, we should pause the local worker to save resources,
         // though we also probably want to make this toggleable so that we can also run non-local workers
-        let pause = redis_con.get::<&str, bool>("gather_pause").unwrap();
+        let pause = backend.get_key_value_bool("gather_pause").unwrap();
 
         if pause {
             thread::sleep(Duration::from_millis(100));
@@ -181,13 +184,13 @@ pub fn main() {
         }
 
         get_experience(
+            &mut backend,
             n_steps, 
             n_procs, 
             device, 
             &multi_prog_bar_total, 
             &total_prog_bar, 
             prog_bar_func, 
-            redis_str,
             act_config.clone(),
             &mut env, 
             &send_local,

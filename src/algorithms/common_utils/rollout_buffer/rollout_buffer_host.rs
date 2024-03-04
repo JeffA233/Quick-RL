@@ -1,27 +1,24 @@
 use std::time::Duration;
 
 use redis::{Client, Commands, Connection};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::rollout_buffer_utils::ExperienceStore;
 
-
-pub struct RolloutBufferHost {
-    // redis_url: String,
+pub struct RedisRolloutBackend {
     redis_con: Connection,
 }
 
-impl RolloutBufferHost {
+impl RedisRolloutBackend {
     pub fn new(redis_url: String) -> Self {
         let redis_client = Client::open(redis_url).unwrap();
         let redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
-        Self {
-            // redis_url,
-            redis_con
-        }
+        Self { redis_con }
     }
+}
 
-    pub fn get_experience(&mut self, num_steps: usize, min_ver: i64) -> ExperienceStore {
+impl RolloutHostBackend for RedisRolloutBackend {
+    fn get_experience(&mut self, num_steps: usize, min_ver: i64) -> ExperienceStore {
         let mut states = Vec::new();
         let mut rewards = Vec::new();
         let mut actions = Vec::new();
@@ -60,4 +57,47 @@ impl RolloutBufferHost {
 
         ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs, terminal_obs: term_obs, model_ver: 0, }
     }
+
+    fn set_key_value<K: AsRef<str>, V: Serialize>(&mut self, key: K, value: V) -> Result<(), Box<dyn std::error::Error>> {
+        // let serialized_value = to_string(&value)?;
+        let mut s = flexbuffers::FlexbufferSerializer::new();
+        value.serialize(&mut s).unwrap();
+        self.redis_con.set(key.as_ref(), s.view())?;
+        Ok(())
+    }
+
+    fn set_key_value_raw<K: AsRef<str>>(&mut self, key: K, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.set(key.as_ref(), value)?;
+        Ok(())
+    }
+
+    fn set_key_value_i64<K: AsRef<str>>(&mut self, key: K, value: i64) ->  Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.set(key.as_ref(), value)?;
+        Ok(())
+    }
+
+    fn set_key_value_bool<K: AsRef<str>>(&mut self, key: K, value: bool) ->  Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.set(key.as_ref(), value)?;
+        Ok(())
+    }
+
+    fn del<K: AsRef<str>>(&mut self, key: K) -> Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.del(key.as_ref())?;
+        Ok(())
+    }
+
+    fn incr<K: AsRef<str>>(&mut self, key: K, increment: i64) -> Result<i64, Box<dyn std::error::Error>> {
+        let result: i64 = self.redis_con.incr(key.as_ref(), increment)?;
+        Ok(result)
+    }
+}
+
+pub trait RolloutHostBackend {
+    fn get_experience(&mut self, num_steps: usize, min_ver: i64) -> ExperienceStore;
+    fn set_key_value<K: AsRef<str>, V: Serialize>(&mut self, key: K, value: V) -> Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_raw<K: AsRef<str>>(&mut self, key: K, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_i64<K: AsRef<str>>(&mut self, key: K, value: i64) ->  Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_bool<K: AsRef<str>>(&mut self, key: K, value: bool) ->  Result<(), Box<dyn std::error::Error>>;
+    fn del<K: AsRef<str>>(&mut self, key: K) -> Result<(), Box<dyn std::error::Error>>;
+    fn incr<K: AsRef<str>>(&mut self, key: K, increment: i64) -> Result<i64, Box<dyn std::error::Error>>;
 }

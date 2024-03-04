@@ -6,18 +6,19 @@ use std::{
 
 use crossbeam_channel::Sender;
 use indicatif::{MultiProgress, ProgressBar};
-use redis::{Client, Commands};
+// use redis::{Client, Commands};
 // use serde::{Deserialize, Serialize};
 use tch::{nn, Device, Kind, Tensor};
 
 use crate::{
-    algorithms::common_utils::rollout_buffer::rollout_buffer_worker::StepStore, 
+    algorithms::common_utils::rollout_buffer::rollout_buffer_worker::{RolloutWorkerBackend, StepStore}, 
     models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, 
     vec_gym_env::VecGymEnv
 };
 
 
-pub fn get_experience(
+pub fn get_experience<T: RolloutWorkerBackend>(
+    backend: &mut T,
     nsteps: i64, 
     nprocs: i64, 
     // obs_space: i64, 
@@ -25,7 +26,6 @@ pub fn get_experience(
     multi_prog_bar_total: &MultiProgress, 
     total_prog_bar: &ProgressBar, 
     prog_bar_func: impl Fn(u64) -> ProgressBar,
-    redis_url: &str,
     act_model_config: LayerConfig,
     env: &mut VecGymEnv,
     send_local: &Sender<StepStore>,
@@ -46,12 +46,8 @@ pub fn get_experience(
 
     let mut obs_store = Tensor::zeros([nprocs, obs_space], (Kind::Float, device));
 
-    // get Redis connection
-    let redis_client = Client::open(redis_url).unwrap();
-    let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
-
-    let act_model_stream = redis_con.get::<&str, std::vec::Vec<u8>>("model_data").unwrap();
-    let act_model_ver = redis_con.get::<&str, i64>("model_ver").unwrap();
+    let act_model_stream = backend.get_key_value_raw("model_data").unwrap();
+    let act_model_ver = backend.get_key_value_i64("model_ver").unwrap();
 
     // load model bytes into VarStore (which then actually loads the parameters)
     let stream = Cursor::new(act_model_stream);

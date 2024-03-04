@@ -1,4 +1,4 @@
-use std::{env, ffi::OsString, time::Duration};
+use std::{env, ffi::OsString};
 
 /* Proximal Policy Optimization (PPO) model.
 
@@ -17,16 +17,10 @@ use serde::Serialize;
 use tch::{nn::{self, init, LinearConfig, OptimizerConfig}, Device, Kind, Tensor};
 
 use quick_rl::{
-    algorithms::common_utils::rollout_buffer::rollout_buffer_host::RolloutBufferHost, 
-    models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
-    // tch_utils::dbg_funcs::{
-    //     print_tensor_2df32, 
-    //     print_tensor_noval, 
-    //     print_tensor_vecf32
-    // }
-    vec_gym_env::VecGymEnv,
-    config::Configuration,
+    algorithms::common_utils::rollout_buffer::rollout_buffer_host::{RedisRolloutBackend, RolloutHostBackend}, config::Configuration, models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, vec_gym_env::VecGymEnv
 };
+
+
 
 // use std::path::PathBuf;
 
@@ -162,10 +156,11 @@ pub fn main() {
     let redis_address = config.redis.ipaddress;
     let redis_str = format!("redis://{}:{}@{}/{}", config.redis.username, password_str, redis_address, db);
     let redis_str = redis_str.as_str();
-    let redis_client = Client::open(redis_str).unwrap();
-    let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
+    // change to make it generic
+    let mut rollout_backend = RedisRolloutBackend::new(redis_str.to_string());
 
-    let mut buffer_host = RolloutBufferHost::new(redis_str.to_owned());
+    // Create an instance of the generic RolloutBufferHost with the Redis backend
+    // let mut buffer_host = Gen::new(redis_backend);
 
     // setup actor and critic
     let vs_act = nn::VarStore::new(device);
@@ -187,15 +182,15 @@ pub fn main() {
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
-    redis_con.set::<&str, i64, ()>("model_ver", 0).unwrap();
+    rollout_backend.set_key_value_i64("model_ver", 0).unwrap();
     // use this flag to pause episode gathering if on the same PC, just testing for now
-    redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
+    rollout_backend.set_key_value_bool("gather_pause", false).unwrap();
     let mut model_ver: i64 = 0;
 
     // send layer config to worker(s) for tch/libtorch usage
     let mut s = flexbuffers::FlexbufferSerializer::new();
     act_config.serialize(&mut s).unwrap();
-    redis_con.set::<&str, &[u8], ()>("actor_structure", s.view()).unwrap();
+    rollout_backend.set_key_value_raw("actor_structure", s.view()).unwrap();
 
     // misc stats stuff
     // let mut total_rewards = 0f64;
@@ -215,20 +210,20 @@ pub fn main() {
         vs_act.save_to_stream(&mut act_save_stream).unwrap();
         let act_buffer = act_save_stream.into_vec();
 
-        redis_con.incr::<&str, i64, ()>("model_ver", 1).unwrap();
+        rollout_backend.incr("model_ver", 1).unwrap();
         model_ver += 1;
 
-        redis_con.set::<&str, std::vec::Vec<u8>, ()>("model_data", act_buffer).unwrap();
+        rollout_backend.set_key_value_raw("model_data", &act_buffer).unwrap();
         // clear redis
-        redis_con.del::<&str, ()>("exp_store").unwrap();
+        rollout_backend.del("exp_store").unwrap();
 
-        redis_con.set::<&str, bool, ()>("gather_pause", false).unwrap();
+        rollout_backend.set_key_value_bool("gather_pause", false).unwrap();
 
         total_steps += n_steps * n_procs;
 
-        let mut exp_store = buffer_host.get_experience(buffersize, model_ver-max_model_age);
+        let mut exp_store = rollout_backend.get_experience(buffersize, model_ver-max_model_age);
         println!("consumed timesteps");
-        redis_con.set::<&str, bool, ()>("gather_pause", true).unwrap();
+        rollout_backend.set_key_value_bool("gather_pause", true).unwrap();
         exp_store.s_states.push(exp_store.terminal_obs);
 
         // move to Tensor
