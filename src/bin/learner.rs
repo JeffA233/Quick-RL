@@ -166,19 +166,24 @@ pub fn main() {
     let vs_act = nn::VarStore::new(device);
     let vs_critic = nn::VarStore::new(device);
     let init_config = Some(LinearConfig { ws_init: init::Init::Orthogonal { gain:  2_f64.sqrt() }, bs_init: Some(init::Init::Const(0.)), bias: true });
-    let layer_vec = if !config.network.custom_shape{
+    let layer_vec_act = if !config.network.custom_shape{
         vec![config.network.actor.layer_size; config.network.actor.num_layers]
         }
         else{
             config.network.custom_actor.layer_vec
         };
-    let act_config = LayerConfig::new(layer_vec, obs_space, Some(env.action_space()));
+    let act_config = LayerConfig::new(layer_vec_act, obs_space, Some(env.action_space()));
     let mut act_model = Actor::new(&vs_act.root(), act_config.clone(), init_config, config.network.act_func);
 
-    let num_layers = config.network.critic.num_layers;
-    let layer_size = config.network.critic.layer_size;
-    let critic_config = LayerConfig::new(vec![layer_size;  num_layers], obs_space, None);
+    let layer_vec_critic = if !config.network.custom_shape{
+        vec![config.network.critic.layer_size; config.network.critic.num_layers]
+        }
+        else{
+            config.network.custom_critic.layer_vec
+        };
+    let critic_config = LayerConfig::new(layer_vec_critic, obs_space, None);
     let mut critic_model = Critic::new(&vs_critic.root(), critic_config, init_config);
+    
     let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
     let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
 
