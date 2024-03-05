@@ -1,4 +1,4 @@
-use std::{thread, time::Duration};
+use std::{env, ffi::OsString, thread, time::Duration};
 
 use crossbeam_channel::bounded;
 /* Proximal Policy Optimization (PPO) model.
@@ -10,7 +10,7 @@ use crossbeam_channel::bounded;
    reference python implementation.
 */
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
-use redis::{Client, Commands};
+// use redis::{Client, Commands};
 use serde::Deserialize;
 
 use tch::Device;
@@ -18,26 +18,19 @@ use tch::Device;
 use quick_rl::{
     algorithms::common_utils::{
         gather_experience::ppo_gather::get_experience, 
-        rollout_buffer::rollout_buffer_worker::buffer_worker
-    }, 
-    models::ppo::default_ppo::LayerConfig, 
-    // tch_utils::dbg_funcs::{
-    //     print_tensor_2df32, 
-    //     print_tensor_noval, 
-    //     print_tensor_vecf32
-    // }
-    vec_gym_env::VecGymEnv,
+        rollout_buffer::rollout_buffer_worker::{buffer_worker, RedisWorkerBackend, RolloutWorkerBackend}
+    }, config::Configuration, models::ppo::default_ppo::LayerConfig, vec_gym_env::VecGymEnv
 };
 
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
 // const MULT: i64 = 12;
-const MULT: i64 = 48;
-// const MULT: i64 = 1;
-const NPROCS: i64 = 2*MULT;
-// const NPROCS: i64 = 1;
-const NSTEPS: i64 = (2048*32)/NPROCS;
-// const NSTEPS: i64 = 1;
-const UPDATES: i64 = 1000000;
+// const MULT: i64 = 48;
+// // const MULT: i64 = 1;
+// const NPROCS: i64 = 2*MULT;
+// // const NPROCS: i64 = 1;
+// const NSTEPS: i64 = (2048*32)/NPROCS;
+// // const NSTEPS: i64 = 1;
+// const UPDATES: i64 = 1000000;
 
 
 pub fn main() {
@@ -45,25 +38,50 @@ pub fn main() {
     // rough benchmark for reward is ~4.26 for rew (which is displayed only in the worker for now) by update idx 150 according to the learner side
     // this isn't quite reached with async for whatever reason(s)
     // --- env setup stuff ---
-    let tick_skip = 8;
+    // I hate this path stuff but I'm not sure what's cleaner
+    let mut config_path = env::current_exe().unwrap();
+    config_path.pop();
+    config_path.pop();
+    config_path.pop();
+    config_path.push("src/config.json");
+    let config = match Configuration::load_configuration(config_path.as_path()) {
+        Ok(config) => config,
+        Err(error) => {
+            panic!("Error loading configuration from '{}': {}", config_path.display(), error);
+        }
+    };
+    let tick_skip = config.tick_skip;
     // let device = Device::Cpu;
     let device = Device::cuda_if_available();
-    let reward_file_name = "rewards_test".to_owned();
+    let reward_file_name = "./rewards_test.txt".to_owned();
     tch::manual_seed(0);
     tch::Cuda::manual_seed_all(0);
 
+    let n_procs = config.n_env;
+    let n_steps = config.hyperparameters.steps_per_rollout;
+    let updates = config.hyperparameters.updates;
     // configure number of agents and gamemodes
-    let num_1s = (NPROCS/2) as usize;
-    let num_1s_gravboost = 0;
-    let num_1s_selfplay = (NPROCS/2) as usize;
-    let num_2s = 0;
-    let num_2s_gravboost = 0;
-    let num_2s_selfplay = 0;
-    // let num_3s = (NPROCS/6) as usize;
-    let num_3s = 0;
-    let num_3s_gravboost = 0;
-    // let num_3s_selfplay = (NPROCS/6) as usize;
-    let num_3s_selfplay = 0;
+    // let num_1s = (n_procs/2) as usize;
+    // let num_1s_gravboost = 0;
+    // let num_1s_selfplay = (n_procs/2) as usize;
+    // let num_2s = 0;
+    // let num_2s_gravboost = 0;
+    // let num_2s_selfplay = 0;
+    // // let num_3s = (n_procs/6) as usize;
+    // let num_3s = 0;
+    // let num_3s_gravboost = 0;
+    // // let num_3s_selfplay = (n_procs/6) as usize;
+    // let num_3s_selfplay = 0;
+    // configure number of agents and gamemodes
+    let num_1s = config.gamemodes.num_1s;
+    let num_1s_gravboost = config.gamemodes.num_1s_gravboost;
+    let num_1s_selfplay = config.gamemodes.num_1s_selfplay;
+    let num_2s = config.gamemodes.num_2s;
+    let num_2s_gravboost = config.gamemodes.num_2s_gravboost;
+    let num_2s_selfplay = config.gamemodes.num_2s_selfplay;
+    let num_3s = config.gamemodes.num_3s;
+    let num_3s_gravboost = config.gamemodes.num_3s_gravboost;
+    let num_3s_selfplay = config.gamemodes.num_3s_selfplay;
 
     let mut match_nums = Vec::new();
     match_nums.extend(vec![2; num_1s]);
@@ -112,7 +130,7 @@ pub fn main() {
         bar
     };
     let multi_prog_bar_total = MultiProgress::new();
-    let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(UPDATES as u64));
+    let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(updates as u64));
 
     // make env
     let mut env = VecGymEnv::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_name);
@@ -121,21 +139,34 @@ pub fn main() {
     println!("observation space: {:?}", obs_space);
 
     // get Redis connection
-    let redis_str = "redis://127.0.0.1/";
-    let redis_client = Client::open(redis_str).unwrap();
-    let mut redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
+    let db = config.redis.dbnum.clone();
+    let password = if !config.redis.password_env_var.is_empty() {
+        env::var_os(&config.redis.password_env_var).expect("Failed to get password") 
+        }
+        else{
+            OsString::from("")
+        };
+    let password_str = password.to_str().expect("Failed to convert password to str");
+    let redis_address = config.redis.ipaddress;
+    let redis_str = format!("redis://{}:{}@{}/{}", config.redis.username, password_str, redis_address, db);
+    let mut backend = RedisWorkerBackend::new(redis_str.clone());
+    // let backend_con = RolloutWorkerRedis::new()
+
 
     // moved here from gather_experience since otherwise we have to wait for full episodes to be submitted which is bad
     let (send_local, rx) = bounded(5000);
     let worker_url = redis_str.to_owned();
-    let join_hand = thread::spawn(move || buffer_worker(rx, worker_url, obs_space, NSTEPS, NPROCS as usize));
-
-    let act_config_data = redis_con.get::<&str, Vec<u8>>("actor_structure").unwrap();
+    println!("we're about to spawn the thread");
+    thread::spawn(move || {
+        buffer_worker(rx, move || RedisWorkerBackend::new(worker_url.clone()), obs_space, n_steps, n_procs as usize);
+    });
+    
+    let act_config_data = backend.get_key_value_raw("actor_structure").unwrap();
     let flex_read = flexbuffers::Reader::get_root(act_config_data.as_slice()).unwrap();
     let act_config = LayerConfig::deserialize(flex_read).unwrap();
 
     // misc stats stuff
-    let mut sum_rewards = vec![0.; NPROCS as usize];
+    let mut sum_rewards = vec![0.; n_procs as usize];
     let mut total_rewards = 0f64;
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
@@ -146,7 +177,7 @@ pub fn main() {
     loop {
         // TODO: in case we are also trying to learn and both are on GPU, we should pause the local worker to save resources,
         // though we also probably want to make this toggleable so that we can also run non-local workers
-        let pause = redis_con.get::<&str, bool>("gather_pause").unwrap();
+        let pause = backend.get_key_value_bool("gather_pause").unwrap();
 
         if pause {
             thread::sleep(Duration::from_millis(100));
@@ -154,22 +185,23 @@ pub fn main() {
         }
 
         get_experience(
-            NSTEPS, 
-            NPROCS, 
+            &mut backend,
+            n_steps, 
+            n_procs, 
             device, 
             &multi_prog_bar_total, 
             &total_prog_bar, 
             prog_bar_func, 
-            redis_str,
             act_config.clone(),
             &mut env, 
             &send_local,
             &mut sum_rewards, 
             &mut total_rewards, 
-            &mut total_episodes
+            &mut total_episodes,
+            config.network.act_func.clone(),
         );
 
-        total_steps += NSTEPS * NPROCS;
+        total_steps += n_steps * n_procs;
 
         if update_index > 0 && update_index % 25 == 0 {
             println!("worker loop idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}",
