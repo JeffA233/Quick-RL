@@ -35,7 +35,8 @@ use quick_rl::{
 
 pub fn main() {
     // NOTE:
-    // rough benchmark is ~4.26 for rew by idx 150
+    // rough benchmark for reward is ~4.26 for rew (which is displayed only in the worker for now) by update idx 150 according to the learner side
+    // this isn't quite reached with async for whatever reason(s)
     // --- env setup stuff ---
     // I hate this path stuff but I'm not sure what's cleaner
     let mut config_path = env::current_exe().unwrap();
@@ -203,7 +204,7 @@ pub fn main() {
         total_steps += n_steps * n_procs;
 
         if update_index > 0 && update_index % 25 == 0 {
-            println!("update idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}",
+            println!("worker loop idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}",
              update_index, total_episodes, total_rewards / total_episodes, total_steps);
             total_rewards = 0.;
             total_episodes = 0.;
