@@ -58,46 +58,46 @@ impl RolloutHostBackend for RedisRolloutBackend {
         ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs, terminal_obs: term_obs, model_ver: 0, }
     }
 
-    fn set_key_value<K: AsRef<str>, V: Serialize>(&mut self, key: K, value: V) -> Result<(), Box<dyn std::error::Error>> {
+    fn set_key_value(&mut self, key: &str, value: impl Serialize) -> Result<(), Box<dyn std::error::Error>> {
         // let serialized_value = to_string(&value)?;
         let mut s = flexbuffers::FlexbufferSerializer::new();
         value.serialize(&mut s).unwrap();
-        self.redis_con.set(key.as_ref(), s.view())?;
+        self.redis_con.set(key, s.view())?;
         Ok(())
     }
 
-    fn set_key_value_raw<K: AsRef<str>>(&mut self, key: K, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        self.redis_con.set(key.as_ref(), value)?;
+    fn set_key_value_raw(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.set(key, value)?;
         Ok(())
     }
 
-    fn set_key_value_i64<K: AsRef<str>>(&mut self, key: K, value: i64) ->  Result<(), Box<dyn std::error::Error>> {
-        self.redis_con.set(key.as_ref(), value)?;
+    fn set_key_value_i64(&mut self, key: &str, value: i64) ->  Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.set(key, value)?;
         Ok(())
     }
 
-    fn set_key_value_bool<K: AsRef<str>>(&mut self, key: K, value: bool) ->  Result<(), Box<dyn std::error::Error>> {
-        self.redis_con.set(key.as_ref(), value)?;
+    fn set_key_value_bool(&mut self, key: &str, value: bool) ->  Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.set(key, value)?;
         Ok(())
     }
 
-    fn del<K: AsRef<str>>(&mut self, key: K) -> Result<(), Box<dyn std::error::Error>> {
-        self.redis_con.del(key.as_ref())?;
+    fn del(&mut self, key: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.del(key)?;
         Ok(())
     }
 
-    fn incr<K: AsRef<str>>(&mut self, key: K, increment: i64) -> Result<i64, Box<dyn std::error::Error>> {
-        let result: i64 = self.redis_con.incr(key.as_ref(), increment)?;
+    fn incr(&mut self, key: &str, increment: i64) -> Result<i64, Box<dyn std::error::Error>> {
+        let result: i64 = self.redis_con.incr(key, increment)?;
         Ok(result)
     }
 }
 
 pub trait RolloutHostBackend {
     fn get_experience(&mut self, num_steps: usize, min_ver: i64) -> ExperienceStore;
-    fn set_key_value<K: AsRef<str>, V: Serialize>(&mut self, key: K, value: V) -> Result<(), Box<dyn std::error::Error>>;
-    fn set_key_value_raw<K: AsRef<str>>(&mut self, key: K, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
-    fn set_key_value_i64<K: AsRef<str>>(&mut self, key: K, value: i64) ->  Result<(), Box<dyn std::error::Error>>;
-    fn set_key_value_bool<K: AsRef<str>>(&mut self, key: K, value: bool) ->  Result<(), Box<dyn std::error::Error>>;
-    fn del<K: AsRef<str>>(&mut self, key: K) -> Result<(), Box<dyn std::error::Error>>;
-    fn incr<K: AsRef<str>>(&mut self, key: K, increment: i64) -> Result<i64, Box<dyn std::error::Error>>;
+    fn set_key_value(&mut self, key: &str, value: impl Serialize) -> Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_raw(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_i64(&mut self, key: &str, value: i64) ->  Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_bool(&mut self, key: &str, value: bool) ->  Result<(), Box<dyn std::error::Error>>;
+    fn del(&mut self, key: &str) -> Result<(), Box<dyn std::error::Error>>;
+    fn incr(&mut self, key: &str, increment: i64) -> Result<i64, Box<dyn std::error::Error>>;
 }

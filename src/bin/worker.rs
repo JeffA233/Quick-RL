@@ -10,7 +10,7 @@ use crossbeam_channel::bounded;
    reference python implementation.
 */
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
-use redis::{Client, Commands};
+// use redis::{Client, Commands};
 use serde::Deserialize;
 
 use tch::Device;
