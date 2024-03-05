@@ -25,7 +25,7 @@ use quick_rl::{
       }, 
       ppo::ppo_learn::PPOLearner
   }, 
-    models::{model_base::{DiscreteActPPO, Model}, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
+    models::{model_base::Model, ppo::default_ppo::{Actor, Critic, LayerConfig}}, 
     // tch_utils::dbg_funcs::{
     //     print_tensor_2df32, 
     //     print_tensor_noval, 
@@ -230,7 +230,7 @@ pub fn main() {
     let optim_epochs = config.hyperparameters.optim_epochs;
   
     let gae_calc = GAECalc::new(Some(gamma), Some(lambda));
-    let train_size = buffersize;
+    // let train_size = buffersize as i64;
     let ppo_learner = PPOLearner::new(optim_epochs, optim_batchsize as usize, clip_range, entropy_coef, grad_clip, device, train_size);
 
     // start of learning loops
