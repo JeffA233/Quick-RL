@@ -24,9 +24,9 @@ use quick_rl::{
 
 // use std::path::PathBuf;
 
-use redis::{
-    Client, Commands,
-};
+// use redis::{
+//     Client, Commands,
+// };
 
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
 // const MULT: i64 = 12;
