@@ -7,10 +7,10 @@ use serde::Serialize;
 use super::rollout_buffer_utils::ExperienceStore;
 
 pub trait RolloutWorkerBackend {
-    fn get_key_value_i64<K: AsRef<str>>(&mut self, key: K) ->  Result<i64, Box<dyn std::error::Error>>;
-    fn get_key_value_bool<K: AsRef<str>>(&mut self, key: K) ->  Result<bool, Box<dyn std::error::Error>>;
-    fn get_key_value_raw<K: AsRef<str>>(&mut self, key: K) ->  Result<Vec<u8>, Box<dyn std::error::Error>>;
-    fn rpush<K: AsRef<str>>(&mut self, key: K, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
+    fn get_key_value_i64(&mut self, key: &str) ->  Result<i64, Box<dyn std::error::Error>>;
+    fn get_key_value_bool(&mut self, key: &str) ->  Result<bool, Box<dyn std::error::Error>>;
+    fn get_key_value_raw(&mut self, key: &str) ->  Result<Vec<u8>, Box<dyn std::error::Error>>;
+    fn rpush(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 // pub trait RolloutWorkerSimple {
@@ -28,9 +28,10 @@ pub struct RolloutWorker<T: RolloutWorkerBackend> {
 }
 
 impl<T: RolloutWorkerBackend> RolloutWorker<T> {
-    pub fn new(backend: T, obs_space: i64, nsteps: i64) -> Self {
+    pub fn new(backend_fn: &(dyn Fn() -> T + Send + 'static), obs_space: i64, nsteps: i64) -> Self {
         let mut states = Vec::with_capacity(nsteps as usize);
         states.push(vec![0.; obs_space as usize]);
+        let backend: T = backend_fn();
         Self {
             backend,
             states,
@@ -127,23 +128,23 @@ impl RedisWorkerBackend {
 
 impl RolloutWorkerBackend for RedisWorkerBackend{
 
-    fn get_key_value_i64<K: AsRef<str>>(&mut self, key: K) -> Result<i64, Box<dyn std::error::Error>> {
-        self.redis_con.get(key.as_ref())
+    fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>> {
+        self.redis_con.get(key)
             .map_err(|e| e.into())
     }
 
-    fn get_key_value_bool<K: AsRef<str>>(&mut self, key: K) -> Result<bool, Box<dyn std::error::Error>> {
-        self.redis_con.get(key.as_ref())
+    fn get_key_value_bool(&mut self, key: &str) -> Result<bool, Box<dyn std::error::Error>> {
+        self.redis_con.get(key)
             .map_err(|e| e.into())
     }
 
-    fn rpush<K: AsRef<str>>(&mut self, key: K, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        self.redis_con.rpush::<&str, &[u8], ()>("exp_store", value)?;
+    fn rpush(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        self.redis_con.rpush::<&str, &[u8], ()>(key, value)?;
         Ok(())
     }
 
-    fn get_key_value_raw<K: AsRef<str>>(&mut self, key: K) ->  Result<Vec<u8>, Box<dyn std::error::Error>> {
-        self.redis_con.get(key.as_ref())
+    fn get_key_value_raw(&mut self, key: &str) ->  Result<Vec<u8>, Box<dyn std::error::Error>> {
+        self.redis_con.get(key)
         .map_err(|e| e.into())
     }
 }
@@ -158,23 +159,21 @@ pub struct StepStore {
     // info: HashMap<String, f32>,
 }
 
-pub fn buffer_worker<T: RolloutWorkerBackend + Send + 'static, F>(
+pub fn buffer_worker<T: RolloutWorkerBackend, F: Fn() -> T + Send + 'static>(
     rec_chan: Receiver<StepStore>,
     backend_factory: F,
     obs_space: i64,
     nsteps: i64,
     nprocs: usize,
-) where
-    F: Fn() -> T + Send + 'static,
-{
+) {
     // let rollout_worker = RolloutBufferWorker::new(redis_url, obs_space, nsteps);
     let mut rollout_bufs = Vec::new();
     
     // let rollout_worker = RolloutWorker::new(redis_backend, obs_space, nsteps);
     for _i in 0..nprocs {
-        let backend = backend_factory();
+        // let backend_box = backend_factory();
         // dbg!(backend.);
-        rollout_bufs.push(RolloutWorker::new(backend, obs_space, nsteps));
+        rollout_bufs.push(RolloutWorker::new(&backend_factory, obs_space, nsteps));
     }
 
     loop {
