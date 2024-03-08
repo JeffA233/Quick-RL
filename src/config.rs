@@ -23,6 +23,7 @@ pub struct Hyperparameters {
     pub grad_clip: f64,
     pub lr: f64,
     pub gamma: f64,
+    pub lambda: f64,
     pub steps_per_rollout: i64,
     pub updates: i64,
     pub max_model_age: i64,

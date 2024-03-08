@@ -82,12 +82,12 @@ pub fn main() {
     let grad_clip = config.hyperparameters.grad_clip;
     let lr = config.hyperparameters.lr;
     let gamma = config.hyperparameters.gamma;
+    let lambda = config.hyperparameters.lambda;
     let device = if config.device.to_lowercase() == "cuda" {Device::cuda_if_available()} else{
             Device::Cpu
         };
     let reward_file_full_path = config.reward_file_full_path.clone();
     let updates = config.hyperparameters.updates;
-    let lambda = 0.95;
   
     tch::manual_seed(0);
     tch::Cuda::manual_seed_all(0);

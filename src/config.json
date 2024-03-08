@@ -5,6 +5,7 @@
       "grad_clip": 0.5,
       "lr": 5e-4,
       "gamma": 0.99,
+      "lambda": 0.95,
       "steps_per_rollout": 682,
       "updates": 1000000,
       "max_model_age": 2,
