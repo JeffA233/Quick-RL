@@ -1,4 +1,4 @@
-use std::{env, ffi::OsString, thread, time::Duration};
+use std::{env, ffi::OsString, path::PathBuf, thread, time::Duration};
 
 use crossbeam_channel::bounded;
 /* Proximal Policy Optimization (PPO) model.
@@ -39,10 +39,7 @@ pub fn main() {
     // this isn't quite reached with async for whatever reason(s)
     // --- env setup stuff ---
     // I hate this path stuff but I'm not sure what's cleaner
-    let mut config_path = env::current_exe().unwrap();
-    config_path.pop();
-    config_path.pop();
-    config_path.pop();
+    let mut config_path = PathBuf::new();
     config_path.push("src/config.json");
     let config = match Configuration::load_configuration(config_path.as_path()) {
         Ok(config) => config,
@@ -50,8 +47,8 @@ pub fn main() {
             panic!("Error loading configuration from '{}': {}", config_path.display(), error);
         }
     };
+
     let tick_skip = config.tick_skip;
-    // let device = Device::Cpu;
     let device = Device::cuda_if_available();
     let reward_file_name = "./rewards_test.txt".to_owned();
     tch::manual_seed(0);
@@ -60,38 +57,20 @@ pub fn main() {
     let n_procs = config.n_env;
     let n_steps = config.hyperparameters.steps_per_rollout;
     let updates = config.hyperparameters.updates;
-    // configure number of agents and gamemodes
-    // let num_1s = (n_procs/2) as usize;
-    // let num_1s_gravboost = 0;
-    // let num_1s_selfplay = (n_procs/2) as usize;
-    // let num_2s = 0;
-    // let num_2s_gravboost = 0;
-    // let num_2s_selfplay = 0;
-    // // let num_3s = (n_procs/6) as usize;
-    // let num_3s = 0;
-    // let num_3s_gravboost = 0;
-    // // let num_3s_selfplay = (n_procs/6) as usize;
-    // let num_3s_selfplay = 0;
-    // configure number of agents and gamemodes
-    let num_1s = config.gamemodes.num_1s;
-    let num_1s_selfplay = config.gamemodes.num_1s_selfplay;
-    let num_2s = config.gamemodes.num_2s;
-    let num_2s_selfplay = config.gamemodes.num_2s_selfplay;
-    let num_3s = config.gamemodes.num_3s;
-    let num_3s_selfplay = config.gamemodes.num_3s_selfplay;
 
+    // configure number of agents and gamemodes
     let mut team_size = Vec::new();
-    team_size.extend(vec![1; num_1s]);
-    team_size.extend(vec![2; num_2s]);
-    team_size.extend(vec![3; num_3s]);
+    team_size.extend(vec![1; config.gamemodes.num_1s]);
+    team_size.extend(vec![2; config.gamemodes.num_2s]);
+    team_size.extend(vec![3; config.gamemodes.num_3s]);
 
     let mut self_plays = Vec::new();
-    self_plays.extend(vec![false; num_1s - num_1s_selfplay]);
-    self_plays.extend(vec![true; num_1s_selfplay]);
-    self_plays.extend(vec![false; num_2s - num_2s_selfplay]);
-    self_plays.extend(vec![true; num_2s_selfplay]);
-    self_plays.extend(vec![false; num_3s - num_3s_selfplay]);
-    self_plays.extend(vec![true; num_3s_selfplay]);
+    self_plays.extend(vec![false; config.gamemodes.num_1s - config.gamemodes.num_1s_selfplay]);
+    self_plays.extend(vec![true; config.gamemodes.num_1s_selfplay]);
+    self_plays.extend(vec![false; config.gamemodes.num_2s - config.gamemodes.num_2s_selfplay]);
+    self_plays.extend(vec![true; config.gamemodes.num_2s_selfplay]);
+    self_plays.extend(vec![false; config.gamemodes.num_3s - config.gamemodes.num_3s_selfplay]);
+    self_plays.extend(vec![true; config.gamemodes.num_3s_selfplay]);
 
     // make progress bar
     let prog_bar_func = |len: u64| {

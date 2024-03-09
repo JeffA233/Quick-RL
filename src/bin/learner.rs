@@ -1,4 +1,4 @@
-use std::{env, ffi::OsString};
+use std::{env, ffi::OsString, path::PathBuf};
 
 /* Proximal Policy Optimization (PPO) model.
 
@@ -36,39 +36,12 @@ use quick_rl::{
 };
 
 
-
-// use std::path::PathBuf;
-
-// use redis::{
-//     Client, Commands,
-// };
-
-// NPROCS needs to be even to function properly (2 agents per 1v1 match)
-// const MULT: i64 = 12;
-// const MULT: i64 = 48;
-// const MULT: i64 = 1;
-// const NPROCS: i64 = 2*MULT;
-// const NPROCS: i64 = 1;
-// const NSTEPS: i64 = (2048*32)/NPROCS;
-// const NSTEPS: i64 = 6;
-// const NSTACK: i64 = 1;
-// const UPDATES: i64 = 1000000;
-// const BUFFERSIZE: i64 = NSTEPS*NPROCS;
-// const OPTIM_BATCHSIZE: i64 = 6;
-// const OPTIM_BATCHSIZE: i64 = BUFFERSIZE/4;
-// const OPTIM_BATCHSIZE: i64 = BUFFERSIZE;
-// const OPTIM_EPOCHS: i64 = 20;
-
-
 pub fn main() {
     // NOTE:
     // rough benchmark is ~4.26 for rew by idx 150
     // --- env setup stuff ---
     // I hate this path stuff but I'm not sure what's cleaner
-    let mut config_path = env::current_exe().unwrap();
-    config_path.pop();
-    config_path.pop();
-    config_path.pop();
+    let mut config_path = PathBuf::new();
     config_path.push("src/config.json");
     let config = match Configuration::load_configuration(config_path.as_path()) {
         Ok(config) => config,
@@ -76,13 +49,7 @@ pub fn main() {
             panic!("Error loading configuration from '{}': {}", config_path.display(), error);
         }
     };
-    let tick_skip = config.tick_skip;
-    let entropy_coef = config.hyperparameters.entropy_coef;
-    let clip_range = config.hyperparameters.clip_range;
-    let grad_clip = config.hyperparameters.grad_clip;
-    let lr = config.hyperparameters.lr;
-    let gamma = config.hyperparameters.gamma;
-    let lambda = config.hyperparameters.lambda;
+
     let device = if config.device.to_lowercase() == "cuda" {Device::cuda_if_available()} else{
             Device::Cpu
         };
@@ -97,25 +64,18 @@ pub fn main() {
     let max_model_age =  config.hyperparameters.max_model_age;
 
     // configure number of agents and gamemodes
-    let num_1s = config.gamemodes.num_1s;
-    let num_1s_selfplay = config.gamemodes.num_1s_selfplay;
-    let num_2s = config.gamemodes.num_2s;
-    let num_2s_selfplay = config.gamemodes.num_2s_selfplay;
-    let num_3s = config.gamemodes.num_3s;
-    let num_3s_selfplay = config.gamemodes.num_3s_selfplay;
-
     let mut team_size = Vec::new();
-    team_size.extend(vec![1; num_1s]);
-    team_size.extend(vec![2; num_2s]);
-    team_size.extend(vec![3; num_3s]);
+    team_size.extend(vec![1; config.gamemodes.num_1s]);
+    team_size.extend(vec![2; config.gamemodes.num_2s]);
+    team_size.extend(vec![3; config.gamemodes.num_3s]);
 
     let mut self_plays = Vec::new();
-    self_plays.extend(vec![false; num_1s - num_1s_selfplay]);
-    self_plays.extend(vec![true; num_1s_selfplay]);
-    self_plays.extend(vec![false; num_2s - num_2s_selfplay]);
-    self_plays.extend(vec![true; num_2s_selfplay]);
-    self_plays.extend(vec![false; num_3s - num_3s_selfplay]);
-    self_plays.extend(vec![true; num_3s_selfplay]);
+    self_plays.extend(vec![false; config.gamemodes.num_1s - config.gamemodes.num_1s_selfplay]);
+    self_plays.extend(vec![true; config.gamemodes.num_1s_selfplay]);
+    self_plays.extend(vec![false; config.gamemodes.num_2s - config.gamemodes.num_2s_selfplay]);
+    self_plays.extend(vec![true; config.gamemodes.num_2s_selfplay]);
+    self_plays.extend(vec![false; config.gamemodes.num_3s - config.gamemodes.num_3s_selfplay]);
+    self_plays.extend(vec![true; config.gamemodes.num_3s_selfplay]);
 
     // make progress bar
     let prog_bar_func = |len: u64| {
@@ -127,7 +87,7 @@ pub fn main() {
     let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(updates as u64));
 
     // make env
-    let env = VecGymEnv::new(team_size, self_plays, tick_skip, reward_file_full_path);
+    let env = VecGymEnv::new(team_size, self_plays, config.tick_skip, reward_file_full_path);
     println!("action space: {}", env.action_space());
     let obs_space = env.observation_space()[1];
     println!("observation space: {:?}", obs_space);
@@ -172,8 +132,11 @@ pub fn main() {
     let critic_config = LayerConfig::new(layer_vec_critic, obs_space, None);
     let mut critic_model = Critic::new(&vs_critic.root(), critic_config, init_config);
     
-    let mut opt_act = nn::Adam::default().build(&vs_act, lr).unwrap();
-    let mut opt_critic = nn::Adam::default().build(&vs_critic, lr).unwrap();
+    let mut opt_act = nn::Adam::default().build(&vs_act, config.hyperparameters.lr).unwrap();
+    let mut opt_critic = nn::Adam::default().build(&vs_critic, config.hyperparameters.lr).unwrap();
+
+    // trying to force worker to wait for model data
+    rollout_backend.del("model_data").unwrap();
 
     rollout_backend.set_key_value_i64("model_ver", 0).unwrap();
     // use this flag to pause episode gathering if on the same PC, just testing for now
@@ -187,24 +150,33 @@ pub fn main() {
     rollout_backend.set_key_value_raw("actor_structure", s.view()).unwrap();
 
     // misc stats stuff
-    // let mut total_rewards = 0f64;
     let mut total_episodes = 0f64;
     let mut total_steps = 0i64;
 
     let n_steps = config.hyperparameters.steps_per_rollout;
     let n_procs = config.n_env;
     let train_size = n_steps * n_procs;
-    let updates = config.hyperparameters.updates;
     let buffersize = config.hyperparameters.buffersize;
     let optim_batchsize = buffersize as i64;
     let optim_epochs = config.hyperparameters.optim_epochs;
   
-    let gae_calc = GAECalc::new(Some(gamma), Some(lambda));
+    let gae_calc = GAECalc::new(
+        Some(config.hyperparameters.gamma), 
+        Some(config.hyperparameters.lambda)
+    );
     // let train_size = buffersize as i64;
-    let ppo_learner = PPOLearner::new(optim_epochs, optim_batchsize as usize, clip_range, entropy_coef, grad_clip, device, train_size);
+    let ppo_learner = PPOLearner::new(
+        optim_epochs, 
+        optim_batchsize as usize, 
+        config.hyperparameters.clip_range, 
+        config.hyperparameters.entropy_coef, 
+        config.hyperparameters.grad_clip, 
+        device, 
+        train_size
+    );
 
     // start of learning loops
-    for update_index in 0..updates {
+    for update_index in 0..config.hyperparameters.updates {
         let mut act_save_stream = ByteBuffer::new();
         // TODO: consider parsing this result
         vs_act.save_to_stream(&mut act_save_stream).unwrap();
