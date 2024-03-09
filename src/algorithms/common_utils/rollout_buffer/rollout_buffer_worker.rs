@@ -4,7 +4,7 @@ use crossbeam_channel::Receiver;
 // use redis::{Client, Commands, Connection};
 use serde::Serialize;
 
-use super::rollout_buffer_utils::{ExperienceStore, DatabaseBackend};
+use super::rollout_buffer_utils::{ExperienceStore, RolloutDatabaseBackend};
 
 // pub trait RolloutWorkerBackend {
 //     fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>>;
@@ -17,7 +17,7 @@ use super::rollout_buffer_utils::{ExperienceStore, DatabaseBackend};
 //     fn get_key_value_bool<K: AsRef<str>>(&mut self, key: K) ->  Result<bool, Box<dyn std::error::Error>>;
 // }
 
-pub struct RolloutWorker<T: DatabaseBackend> {
+pub struct RolloutWorker<T: RolloutDatabaseBackend> {
     backend: T,
     states: Vec<Vec<f32>>,
     rewards: Vec<f32>,
@@ -27,7 +27,7 @@ pub struct RolloutWorker<T: DatabaseBackend> {
     model_version: i64,
 }
 
-impl<T: DatabaseBackend> RolloutWorker<T> {
+impl<T: RolloutDatabaseBackend> RolloutWorker<T> {
     pub fn new(backend_fn: &(dyn Fn() -> T + Send + 'static), obs_space: i64, nsteps: i64) -> Self {
         let mut states = Vec::with_capacity(nsteps as usize);
         states.push(vec![0.; obs_space as usize]);
@@ -44,7 +44,7 @@ impl<T: DatabaseBackend> RolloutWorker<T> {
     }
 }
 
-impl<T: DatabaseBackend> RolloutWorker<T> {
+impl<T: RolloutDatabaseBackend> RolloutWorker<T> {
     /// note here that the state is actually the previous state t+0 from the gym and not the current one which is t+1
     fn push_experience(
         &mut self,
@@ -170,7 +170,7 @@ pub struct StepStore {
     // info: HashMap<String, f32>,
 }
 
-pub fn buffer_worker<T: DatabaseBackend, F: Fn() -> T + Send + 'static>(
+pub fn buffer_worker<T: RolloutDatabaseBackend, F: Fn() -> T + Send + 'static>(
     rec_chan: Receiver<StepStore>,
     backend_factory: F,
     obs_space: i64,

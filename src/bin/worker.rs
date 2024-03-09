@@ -20,7 +20,7 @@ use quick_rl::{
         gather_experience::ppo_gather::get_experience,
         rollout_buffer::{
             rollout_buffer_redis::RedisDatabaseBackend, 
-            rollout_buffer_utils::DatabaseBackend, 
+            rollout_buffer_utils::RolloutDatabaseBackend, 
             rollout_buffer_worker::buffer_worker,
         },
     },
@@ -105,7 +105,8 @@ pub fn main() {
 
     // make env
     let mut env = VecGymEnv::new(team_size, self_plays, tick_skip, reward_file_name);
-    println!("action space: {}", env.action_space());
+    let act_space = env.action_space();
+    println!("action space: {}", act_space);
     let obs_space = env.observation_space()[1];
     println!("observation space: {:?}", obs_space);
 
@@ -125,7 +126,9 @@ pub fn main() {
         config.redis.username, password_str, redis_address, db
     );
     let mut backend = RedisDatabaseBackend::new(redis_str.clone());
-    // let backend_con = RolloutWorkerRedis::new()
+
+    backend.set_key_value_i64("obs_space", obs_space).unwrap();
+    backend.set_key_value_i64("act_space", act_space).unwrap();
 
     // moved here from gather_experience since otherwise we have to wait for full episodes to be submitted which is bad
     let (send_local, rx) = bounded(5000);

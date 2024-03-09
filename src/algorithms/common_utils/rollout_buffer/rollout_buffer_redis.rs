@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::algorithms::common_utils::rollout_buffer::rollout_buffer_utils::ExperienceStore;
 
-use super::rollout_buffer_utils::DatabaseBackend;
+use super::rollout_buffer_utils::RolloutDatabaseBackend;
 
 
 
@@ -23,7 +23,7 @@ impl RedisDatabaseBackend {
     }
 }
 
-impl DatabaseBackend for RedisDatabaseBackend {
+impl RolloutDatabaseBackend for RedisDatabaseBackend {
     fn get_experience(&mut self, num_steps: usize, min_ver: i64) -> ExperienceStore {
         let mut states = Vec::new();
         let mut rewards = Vec::new();

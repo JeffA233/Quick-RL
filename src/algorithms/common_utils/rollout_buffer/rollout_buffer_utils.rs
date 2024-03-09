@@ -46,7 +46,7 @@ pub struct ExperienceStore {
     pub model_ver: i64,
 }
 
-pub trait DatabaseBackend {
+pub trait RolloutDatabaseBackend {
     fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>>;
     fn get_key_value_bool(&mut self, key: &str) -> Result<bool, Box<dyn std::error::Error>>;
     fn get_key_value_raw(&mut self, key: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>>;

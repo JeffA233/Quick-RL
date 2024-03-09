@@ -1,4 +1,4 @@
-use std::{env, ffi::OsString, path::PathBuf};
+use std::{env, ffi::OsString, path::PathBuf, thread, time::Duration};
 
 /* Proximal Policy Optimization (PPO) model.
 
@@ -25,7 +25,7 @@ use quick_rl::{
             // rollout_buffer::rollout_buffer_host::RolloutBufferHost,
             rollout_buffer::{
                 rollout_buffer_redis::RedisDatabaseBackend, 
-                rollout_buffer_utils::DatabaseBackend, 
+                rollout_buffer_utils::RolloutDatabaseBackend, 
                 // rollout_buffer_worker::buffer_worker,
             },
             GAECalc,
@@ -42,7 +42,6 @@ use quick_rl::{
     //     print_tensor_noval,
     //     print_tensor_vecf32
     // }
-    vec_gym_env::VecGymEnv,
 };
 
 pub fn main() {
@@ -68,7 +67,6 @@ pub fn main() {
     } else {
         Device::Cpu
     };
-    let reward_file_full_path = config.reward_file_full_path.clone();
     let updates = config.hyperparameters.updates;
 
     tch::manual_seed(0);
@@ -114,15 +112,15 @@ pub fn main() {
     let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(updates as u64));
 
     // make env
-    let env = VecGymEnv::new(
-        team_size,
-        self_plays,
-        config.tick_skip,
-        reward_file_full_path,
-    );
-    println!("action space: {}", env.action_space());
-    let obs_space = env.observation_space()[1];
-    println!("observation space: {:?}", obs_space);
+    // let env = VecGymEnv::new(
+    //     team_size,
+    //     self_plays,
+    //     config.tick_skip,
+    //     reward_file_full_path,
+    // );
+    // println!("action space: {}", env.action_space());
+    // let obs_space = env.observation_space()[1];
+    // println!("observation space: {:?}", obs_space);
 
     // get Redis connection
     let db = config.redis.dbnum.clone();
@@ -134,7 +132,7 @@ pub fn main() {
     let password_str = password
         .to_str()
         .expect("Failed to convert password to str");
-    let redis_address = config.redis.ipaddress;
+    let redis_address = config.redis.ipaddress.clone();
     let redis_str = format!(
         "redis://{}:{}@{}/{}",
         config.redis.username, password_str, redis_address, db
@@ -143,7 +141,27 @@ pub fn main() {
     // change to make it generic
     let mut rollout_backend = RedisDatabaseBackend::new(redis_str.to_string());
 
-
+    // send config to worker
+    rollout_backend.del("obs_space").unwrap();
+    rollout_backend.del("act_space").unwrap();
+    println!("waiting for worker");
+    let mut obs_space;
+    let act_space;
+    loop {
+        let obs_space_op = rollout_backend.get_key_value_i64("obs_space");
+        obs_space = match obs_space_op {
+            Ok(val) => val,
+            Err(_e) => {thread::sleep(Duration::from_secs_f32(1.)); continue}
+        };
+        let act_space_op = rollout_backend.get_key_value_i64("act_space");
+        act_space = match act_space_op {
+            Ok(val) => val,
+            Err(_e) => {thread::sleep(Duration::from_secs_f32(1.)); continue}
+        };
+        break
+    }
+    println!("obs space: {}", obs_space);
+    println!("action space: {}", act_space);
 
     // Create an instance of the generic RolloutBufferHost with the Redis backend
     // let mut buffer_host = Gen::new(redis_backend);
@@ -161,7 +179,7 @@ pub fn main() {
     } else {
         config.network.custom_actor.layer_vec
     };
-    let act_config = LayerConfig::new(layer_vec_act, obs_space, Some(env.action_space()));
+    let act_config = LayerConfig::new(layer_vec_act, obs_space, Some(act_space));
     let mut act_model = Actor::new(
         &vs_act.root(),
         act_config.clone(),

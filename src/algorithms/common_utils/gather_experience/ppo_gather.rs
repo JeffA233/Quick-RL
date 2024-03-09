@@ -16,7 +16,7 @@ use crate::{
             // RolloutWorkerBackend, 
             StepStore,
         },
-        rollout_buffer_utils::DatabaseBackend,
+        rollout_buffer_utils::RolloutDatabaseBackend,
     },
     
     models::{
@@ -26,7 +26,7 @@ use crate::{
     vec_gym_env::VecGymEnv,
 };
 
-pub fn get_experience<T: DatabaseBackend>(
+pub fn get_experience<T: RolloutDatabaseBackend>(
     backend: &mut T,
     nsteps: i64,
     nprocs: i64,
