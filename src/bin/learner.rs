@@ -23,7 +23,11 @@ use quick_rl::{
     algorithms::{
         common_utils::{
             // rollout_buffer::rollout_buffer_host::RolloutBufferHost,
-            rollout_buffer::rollout_buffer_host::{RedisRolloutBackend, RolloutHostBackend},
+            rollout_buffer::{
+                rollout_buffer_redis::RedisDatabaseBackend, 
+                rollout_buffer_utils::DatabaseBackend, 
+                // rollout_buffer_worker::buffer_worker,
+            },
             GAECalc,
         },
         ppo::ppo_learn::PPOLearner,
@@ -137,7 +141,9 @@ pub fn main() {
     );
     let redis_str = redis_str.as_str();
     // change to make it generic
-    let mut rollout_backend = RedisRolloutBackend::new(redis_str.to_string());
+    let mut rollout_backend = RedisDatabaseBackend::new(redis_str.to_string());
+
+
 
     // Create an instance of the generic RolloutBufferHost with the Redis backend
     // let mut buffer_host = Gen::new(redis_backend);

@@ -18,8 +18,10 @@ use tch::Device;
 use quick_rl::{
     algorithms::common_utils::{
         gather_experience::ppo_gather::get_experience,
-        rollout_buffer::rollout_buffer_worker::{
-            buffer_worker, RedisWorkerBackend, RolloutWorkerBackend,
+        rollout_buffer::{
+            rollout_buffer_redis::RedisDatabaseBackend, 
+            rollout_buffer_utils::DatabaseBackend, 
+            rollout_buffer_worker::buffer_worker,
         },
     },
     config::Configuration,
@@ -122,7 +124,7 @@ pub fn main() {
         "redis://{}:{}@{}/{}",
         config.redis.username, password_str, redis_address, db
     );
-    let mut backend = RedisWorkerBackend::new(redis_str.clone());
+    let mut backend = RedisDatabaseBackend::new(redis_str.clone());
     // let backend_con = RolloutWorkerRedis::new()
 
     // moved here from gather_experience since otherwise we have to wait for full episodes to be submitted which is bad
@@ -132,7 +134,7 @@ pub fn main() {
     thread::spawn(move || {
         buffer_worker(
             rx,
-            move || RedisWorkerBackend::new(worker_url.clone()),
+            move || RedisDatabaseBackend::new(worker_url.clone()),
             obs_space,
             n_steps,
             n_procs as usize,

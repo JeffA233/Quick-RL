@@ -1,7 +1,7 @@
 use std::{
     io::Cursor,
     // thread,
-    time::Duration,
+    // time::Duration,
 };
 
 use crossbeam_channel::Sender;
@@ -11,9 +11,14 @@ use indicatif::{MultiProgress, ProgressBar};
 use tch::{nn, Device, Kind, Tensor};
 
 use crate::{
-    algorithms::common_utils::rollout_buffer::rollout_buffer_worker::{
-        RolloutWorkerBackend, StepStore,
+    algorithms::common_utils::rollout_buffer::{
+        rollout_buffer_worker::{
+            // RolloutWorkerBackend, 
+            StepStore,
+        },
+        rollout_buffer_utils::DatabaseBackend,
     },
+    
     models::{
         model_base::DiscreteActPPO,
         ppo::default_ppo::{Actor, LayerConfig},
@@ -21,7 +26,7 @@ use crate::{
     vec_gym_env::VecGymEnv,
 };
 
-pub fn get_experience<T: RolloutWorkerBackend>(
+pub fn get_experience<T: DatabaseBackend>(
     backend: &mut T,
     nsteps: i64,
     nprocs: i64,

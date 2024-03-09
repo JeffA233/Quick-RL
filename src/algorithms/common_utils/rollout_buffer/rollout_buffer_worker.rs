@@ -1,23 +1,23 @@
-use std::time::Duration;
+// use std::time::Duration;
 
 use crossbeam_channel::Receiver;
-use redis::{Client, Commands, Connection};
+// use redis::{Client, Commands, Connection};
 use serde::Serialize;
 
-use super::rollout_buffer_utils::ExperienceStore;
+use super::rollout_buffer_utils::{ExperienceStore, DatabaseBackend};
 
-pub trait RolloutWorkerBackend {
-    fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>>;
-    fn get_key_value_bool(&mut self, key: &str) -> Result<bool, Box<dyn std::error::Error>>;
-    fn get_key_value_raw(&mut self, key: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>>;
-    fn rpush(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
-}
+// pub trait RolloutWorkerBackend {
+//     fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>>;
+//     fn get_key_value_bool(&mut self, key: &str) -> Result<bool, Box<dyn std::error::Error>>;
+//     fn get_key_value_raw(&mut self, key: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>>;
+//     fn rpush(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
+// }
 
 // pub trait RolloutWorkerSimple {
 //     fn get_key_value_bool<K: AsRef<str>>(&mut self, key: K) ->  Result<bool, Box<dyn std::error::Error>>;
 // }
 
-pub struct RolloutWorker<T: RolloutWorkerBackend> {
+pub struct RolloutWorker<T: DatabaseBackend> {
     backend: T,
     states: Vec<Vec<f32>>,
     rewards: Vec<f32>,
@@ -27,7 +27,7 @@ pub struct RolloutWorker<T: RolloutWorkerBackend> {
     model_version: i64,
 }
 
-impl<T: RolloutWorkerBackend> RolloutWorker<T> {
+impl<T: DatabaseBackend> RolloutWorker<T> {
     pub fn new(backend_fn: &(dyn Fn() -> T + Send + 'static), obs_space: i64, nsteps: i64) -> Self {
         let mut states = Vec::with_capacity(nsteps as usize);
         states.push(vec![0.; obs_space as usize]);
@@ -44,7 +44,7 @@ impl<T: RolloutWorkerBackend> RolloutWorker<T> {
     }
 }
 
-impl<T: RolloutWorkerBackend> RolloutWorker<T> {
+impl<T: DatabaseBackend> RolloutWorker<T> {
     /// note here that the state is actually the previous state t+0 from the gym and not the current one which is t+1
     fn push_experience(
         &mut self,
@@ -127,38 +127,38 @@ impl<T: RolloutWorkerBackend> RolloutWorker<T> {
     }
 }
 
-pub struct RedisWorkerBackend {
-    redis_con: Connection,
-}
+// pub struct RedisWorkerBackend {
+//     redis_con: Connection,
+// }
 
-impl RedisWorkerBackend {
-    pub fn new(redis_url: String) -> Self {
-        let redis_client = Client::open(redis_url).unwrap();
-        let redis_con = redis_client
-            .get_connection_with_timeout(Duration::from_secs(30))
-            .unwrap();
-        Self { redis_con }
-    }
-}
+// impl RedisWorkerBackend {
+//     pub fn new(redis_url: String) -> Self {
+//         let redis_client = Client::open(redis_url).unwrap();
+//         let redis_con = redis_client
+//             .get_connection_with_timeout(Duration::from_secs(30))
+//             .unwrap();
+//         Self { redis_con }
+//     }
+// }
 
-impl RolloutWorkerBackend for RedisWorkerBackend {
-    fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>> {
-        self.redis_con.get(key).map_err(|e| e.into())
-    }
+// impl RolloutWorkerBackend for RedisWorkerBackend {
+//     fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>> {
+//         self.redis_con.get(key).map_err(|e| e.into())
+//     }
 
-    fn get_key_value_bool(&mut self, key: &str) -> Result<bool, Box<dyn std::error::Error>> {
-        self.redis_con.get(key).map_err(|e| e.into())
-    }
+//     fn get_key_value_bool(&mut self, key: &str) -> Result<bool, Box<dyn std::error::Error>> {
+//         self.redis_con.get(key).map_err(|e| e.into())
+//     }
 
-    fn rpush(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        self.redis_con.rpush::<&str, &[u8], ()>(key, value)?;
-        Ok(())
-    }
+//     fn rpush(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+//         self.redis_con.rpush::<&str, &[u8], ()>(key, value)?;
+//         Ok(())
+//     }
 
-    fn get_key_value_raw(&mut self, key: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        self.redis_con.get(key).map_err(|e| e.into())
-    }
-}
+//     fn get_key_value_raw(&mut self, key: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+//         self.redis_con.get(key).map_err(|e| e.into())
+//     }
+// }
 
 pub struct StepStore {
     pub obs: Vec<Vec<f32>>,
@@ -170,7 +170,7 @@ pub struct StepStore {
     // info: HashMap<String, f32>,
 }
 
-pub fn buffer_worker<T: RolloutWorkerBackend, F: Fn() -> T + Send + 'static>(
+pub fn buffer_worker<T: DatabaseBackend, F: Fn() -> T + Send + 'static>(
     rec_chan: Receiver<StepStore>,
     backend_factory: F,
     obs_space: i64,
