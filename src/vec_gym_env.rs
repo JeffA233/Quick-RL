@@ -35,8 +35,15 @@ pub struct VecGymEnv {
 }
 
 impl VecGymEnv {
-    pub fn new(match_nums: Vec<usize>, gravity_nums: Vec<f32>, boost_nums: Vec<f32>, self_plays: Vec<bool>, tick_skip: usize, reward_file_name: String) -> VecGymEnv {
-        let env = GymManager::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_name);
+    pub fn new(
+        match_nums: Vec<usize>, 
+        // gravity_nums: Vec<f32>, 
+        // boost_nums: Vec<f32>, 
+        self_plays: Vec<bool>, 
+        tick_skip: usize, 
+        reward_file_name: String
+    ) -> VecGymEnv {
+        let env = GymManager::new(match_nums, self_plays, tick_skip, reward_file_name);
         let nprocesses = env.total_agents as i64;
         // FIXME: hardcoded for now
         // advancedobs in 1s is 107

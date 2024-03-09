@@ -341,7 +341,7 @@ pub enum WorkerPacket {
 // #[pymethods]
 impl GymManager {
     // #[new]
-    pub fn new(match_nums: Vec<usize>, gravity_nums: Vec<f32>, boost_nums: Vec<f32>, self_plays: Vec<bool>, tick_skip: usize, reward_file_full_path: String) -> Self {
+    pub fn new(match_nums: Vec<usize>, self_plays: Vec<bool>, tick_skip: usize, reward_file_full_path: String) -> Self {
         rocketsim_rs::init(None);
         let mut recv_vec = Vec::<Receiver<WorkerPacket>>::new();
         let mut send_vec = Vec::<Sender<ManagerPacket>>::new();
@@ -361,13 +361,13 @@ impl GymManager {
 
         for (match_num, self_play) in match_nums.iter().zip(self_plays.iter()) {
             if *self_play {
-                corrected_match_nums.push(*match_num);
+                corrected_match_nums.push(*match_num * 2);
             } else {
-                corrected_match_nums.push(*match_num / 2);
+                corrected_match_nums.push(*match_num);
             }
         }
 
-        for (match_num, gravity, boost, self_play) in izip!(match_nums, gravity_nums, boost_nums, self_plays) {
+        for (match_num, self_play) in izip!(match_nums, self_plays) {
             let mut retry_loop = true;
             let mut num_retries = 0;
             // try to loop until the game successfully launches
@@ -379,7 +379,7 @@ impl GymManager {
                 let recv_local: Receiver<WorkerPacket>;
                 (send_local, rx) = bounded(1);
                 (tx, recv_local) = bounded(1);
-                let thrd1 = thread::spawn(move || worker(match_num / 2, gravity, boost, self_play, tick_skip, tx, rx, reward_send_local));
+                let thrd1 = thread::spawn(move || worker(match_num, 1., 1., self_play, tick_skip, tx, rx, reward_send_local));
                 // curr_id += 1;
 
                 // wait for worker to send back a packet or if it never does then restart loop to try again

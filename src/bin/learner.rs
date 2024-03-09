@@ -98,46 +98,16 @@ pub fn main() {
 
     // configure number of agents and gamemodes
     let num_1s = config.gamemodes.num_1s;
-    let num_1s_gravboost = config.gamemodes.num_1s_gravboost;
     let num_1s_selfplay = config.gamemodes.num_1s_selfplay;
     let num_2s = config.gamemodes.num_2s;
-    let num_2s_gravboost = config.gamemodes.num_2s_gravboost;
     let num_2s_selfplay = config.gamemodes.num_2s_selfplay;
     let num_3s = config.gamemodes.num_3s;
-    let num_3s_gravboost = config.gamemodes.num_3s_gravboost;
     let num_3s_selfplay = config.gamemodes.num_3s_selfplay;
 
-    let mut match_nums = Vec::new();
-    match_nums.extend(vec![2; num_1s]);
-    match_nums.extend(vec![4; num_2s]);
-    match_nums.extend(vec![6; num_3s]);
-
-    let mut gravity_nums = Vec::new();
-    let mut boost_nums = Vec::new();
-    for _ in 0..(num_1s - num_1s_gravboost) {
-        gravity_nums.push(1.);
-        boost_nums.push(1.);
-    }
-    for _ in 0..num_1s_gravboost {
-        gravity_nums.push(0.);
-        boost_nums.push(0.);
-    }
-    for _ in 0..(num_2s - num_2s_gravboost) {
-        gravity_nums.push(1.);
-        boost_nums.push(1.);
-    }
-    for _ in 0..num_2s_gravboost {
-        gravity_nums.push(0.);
-        boost_nums.push(0.);
-    }
-    for _ in 0..(num_3s - num_3s_gravboost) {
-        gravity_nums.push(1.);
-        boost_nums.push(1.);
-    }
-    for _ in 0..num_3s_gravboost {
-        gravity_nums.push(0.);
-        boost_nums.push(0.);
-    }
+    let mut team_size = Vec::new();
+    team_size.extend(vec![1; num_1s]);
+    team_size.extend(vec![2; num_2s]);
+    team_size.extend(vec![3; num_3s]);
 
     let mut self_plays = Vec::new();
     self_plays.extend(vec![false; num_1s - num_1s_selfplay]);
@@ -157,7 +127,7 @@ pub fn main() {
     let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(updates as u64));
 
     // make env
-    let env = VecGymEnv::new(match_nums, gravity_nums, boost_nums, self_plays, tick_skip, reward_file_full_path);
+    let env = VecGymEnv::new(team_size, self_plays, tick_skip, reward_file_full_path);
     println!("action space: {}", env.action_space());
     let obs_space = env.observation_space()[1];
     println!("observation space: {:?}", obs_space);

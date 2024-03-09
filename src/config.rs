@@ -34,13 +34,10 @@ pub struct Hyperparameters {
 #[derive(Deserialize)]
 pub struct Gamemodes {
     pub num_1s: usize,
-    pub num_1s_gravboost: usize,
     pub num_1s_selfplay: usize,
     pub num_2s: usize,
-    pub num_2s_gravboost: usize,
     pub num_2s_selfplay: usize,
     pub num_3s: usize,
-    pub num_3s_gravboost: usize,
     pub num_3s_selfplay: usize,
 }
 
