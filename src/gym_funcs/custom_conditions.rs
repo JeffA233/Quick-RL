@@ -4,9 +4,9 @@ use rlgym_sim_gym::{
     // common_conditions::{GoalScoredCondition, NoTouchTimeoutCondition, TimeoutCondition},
     GoalScoredCondition,
     NoTouchTimeoutCondition,
-    TimeoutCondition,
     // terminal_condition::TerminalCondition,
     TerminalCondition,
+    TimeoutCondition,
 };
 
 /// Terminal conditions for Matrix
@@ -56,7 +56,10 @@ pub struct NoTouchKickoffTimeoutCondition {
 
 impl NoTouchKickoffTimeoutCondition {
     pub fn new(max_steps: i64) -> Self {
-        NoTouchKickoffTimeoutCondition { steps: 0, max_steps }
+        NoTouchKickoffTimeoutCondition {
+            steps: 0,
+            max_steps,
+        }
     }
 }
 

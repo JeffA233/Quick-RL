@@ -1,4 +1,4 @@
-use tch::{Tensor, Device};
+use tch::{Device, Tensor};
 
 use super::ppo::default_ppo::LayerConfig;
 

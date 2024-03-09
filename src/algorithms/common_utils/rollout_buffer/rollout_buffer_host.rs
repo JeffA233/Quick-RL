@@ -12,7 +12,9 @@ pub struct RedisRolloutBackend {
 impl RedisRolloutBackend {
     pub fn new(redis_url: String) -> Self {
         let redis_client = Client::open(redis_url).unwrap();
-        let redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
+        let redis_con = redis_client
+            .get_connection_with_timeout(Duration::from_secs(30))
+            .unwrap();
         Self { redis_con }
     }
 }
@@ -45,7 +47,7 @@ impl RolloutHostBackend for RedisRolloutBackend {
                 actions.extend(exp_store.s_actions);
                 dones.extend(exp_store.dones_f);
                 log_probs.extend(exp_store.s_log_probs);
-    
+
                 term_obs = exp_store.terminal_obs;
             } else {
                 discarded_stores += 1;
@@ -55,10 +57,22 @@ impl RolloutHostBackend for RedisRolloutBackend {
 
         println!("discarded {} rollouts", discarded_stores);
 
-        ExperienceStore { s_states: states, s_rewards: rewards, s_actions: actions, dones_f: dones, s_log_probs: log_probs, terminal_obs: term_obs, model_ver: 0, }
+        ExperienceStore {
+            s_states: states,
+            s_rewards: rewards,
+            s_actions: actions,
+            dones_f: dones,
+            s_log_probs: log_probs,
+            terminal_obs: term_obs,
+            model_ver: 0,
+        }
     }
 
-    fn set_key_value(&mut self, key: &str, value: impl Serialize) -> Result<(), Box<dyn std::error::Error>> {
+    fn set_key_value(
+        &mut self,
+        key: &str,
+        value: impl Serialize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // let serialized_value = to_string(&value)?;
         let mut s = flexbuffers::FlexbufferSerializer::new();
         value.serialize(&mut s).unwrap();
@@ -66,17 +80,29 @@ impl RolloutHostBackend for RedisRolloutBackend {
         Ok(())
     }
 
-    fn set_key_value_raw(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    fn set_key_value_raw(
+        &mut self,
+        key: &str,
+        value: &[u8],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.redis_con.set(key, value)?;
         Ok(())
     }
 
-    fn set_key_value_i64(&mut self, key: &str, value: i64) ->  Result<(), Box<dyn std::error::Error>> {
+    fn set_key_value_i64(
+        &mut self,
+        key: &str,
+        value: i64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.redis_con.set(key, value)?;
         Ok(())
     }
 
-    fn set_key_value_bool(&mut self, key: &str, value: bool) ->  Result<(), Box<dyn std::error::Error>> {
+    fn set_key_value_bool(
+        &mut self,
+        key: &str,
+        value: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.redis_con.set(key, value)?;
         Ok(())
     }
@@ -94,10 +120,26 @@ impl RolloutHostBackend for RedisRolloutBackend {
 
 pub trait RolloutHostBackend {
     fn get_experience(&mut self, num_steps: usize, min_ver: i64) -> ExperienceStore;
-    fn set_key_value(&mut self, key: &str, value: impl Serialize) -> Result<(), Box<dyn std::error::Error>>;
-    fn set_key_value_raw(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
-    fn set_key_value_i64(&mut self, key: &str, value: i64) ->  Result<(), Box<dyn std::error::Error>>;
-    fn set_key_value_bool(&mut self, key: &str, value: bool) ->  Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value(
+        &mut self,
+        key: &str,
+        value: impl Serialize,
+    ) -> Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_raw(
+        &mut self,
+        key: &str,
+        value: &[u8],
+    ) -> Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_i64(
+        &mut self,
+        key: &str,
+        value: i64,
+    ) -> Result<(), Box<dyn std::error::Error>>;
+    fn set_key_value_bool(
+        &mut self,
+        key: &str,
+        value: bool,
+    ) -> Result<(), Box<dyn std::error::Error>>;
     fn del(&mut self, key: &str) -> Result<(), Box<dyn std::error::Error>>;
     fn incr(&mut self, key: &str, increment: i64) -> Result<i64, Box<dyn std::error::Error>>;
 }

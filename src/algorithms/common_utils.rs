@@ -1,8 +1,7 @@
 use tch::{Device, Kind, Tensor};
 
-pub mod rollout_buffer;
 pub mod gather_experience;
-
+pub mod rollout_buffer;
 
 pub struct GAECalc {
     gamma: f64,
@@ -13,14 +12,23 @@ impl GAECalc {
     pub fn new(gamma: Option<f64>, lambda: Option<f64>) -> Self {
         Self {
             gamma: gamma.unwrap_or(0.99),
-            lambda: lambda.unwrap_or(0.95)
+            lambda: lambda.unwrap_or(0.95),
         }
     }
     pub fn calc(&self, rewards: &Tensor, dones: &Tensor, vals: &Tensor) -> Tensor {
-        assert!(rewards.kind() == Kind::Float, "rewards in gae calc was not of type float");
-        assert!(dones.kind() == Kind::Float, "dones in gae calc was not of type float");
-        assert!(vals.kind() == Kind::Float, "rewards in gae calc was not of type float");
-    
+        assert!(
+            rewards.kind() == Kind::Float,
+            "rewards in gae calc was not of type float"
+        );
+        assert!(
+            dones.kind() == Kind::Float,
+            "dones in gae calc was not of type float"
+        );
+        assert!(
+            vals.kind() == Kind::Float,
+            "rewards in gae calc was not of type float"
+        );
+
         let buf_size = rewards.size()[0];
         let adv = Tensor::zeros([buf_size], (Kind::Float, Device::Cpu));
         // let vals = tch::no_grad(|| critic_model.forward(&states.to_device_(device, Kind::Float, true, false))).squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
@@ -48,7 +56,7 @@ impl GAECalc {
             adv.get(idx).copy_(&last_gae_lam.squeeze());
             // print_tensor_f32("targ_val", &targ_val);
         }
-    
+
         adv
     }
 

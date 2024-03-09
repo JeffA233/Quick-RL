@@ -1,7 +1,7 @@
 use std::{
-    io::Cursor, 
-    // thread, 
-    time::Duration
+    io::Cursor,
+    // thread,
+    time::Duration,
 };
 
 use crossbeam_channel::Sender;
@@ -11,20 +11,24 @@ use indicatif::{MultiProgress, ProgressBar};
 use tch::{nn, Device, Kind, Tensor};
 
 use crate::{
-    algorithms::common_utils::rollout_buffer::rollout_buffer_worker::{RolloutWorkerBackend, StepStore}, 
-    models::{model_base::DiscreteActPPO, ppo::default_ppo::{Actor, LayerConfig}}, 
-    vec_gym_env::VecGymEnv
+    algorithms::common_utils::rollout_buffer::rollout_buffer_worker::{
+        RolloutWorkerBackend, StepStore,
+    },
+    models::{
+        model_base::DiscreteActPPO,
+        ppo::default_ppo::{Actor, LayerConfig},
+    },
+    vec_gym_env::VecGymEnv,
 };
-
 
 pub fn get_experience<T: RolloutWorkerBackend>(
     backend: &mut T,
-    nsteps: i64, 
-    nprocs: i64, 
-    // obs_space: i64, 
-    device: Device, 
-    multi_prog_bar_total: &MultiProgress, 
-    total_prog_bar: &ProgressBar, 
+    nsteps: i64,
+    nprocs: i64,
+    // obs_space: i64,
+    device: Device,
+    multi_prog_bar_total: &MultiProgress,
+    total_prog_bar: &ProgressBar,
     prog_bar_func: impl Fn(u64) -> ProgressBar,
     act_model_config: LayerConfig,
     env: &mut VecGymEnv,
@@ -60,8 +64,12 @@ pub fn get_experience<T: RolloutWorkerBackend>(
         prog_bar.inc(nprocs as u64);
 
         let (actions, log_prob) = tch::no_grad(|| act_model.get_act_prob(&obs_store, false));
-        let actions_sqz = actions.squeeze().to_device_(Device::Cpu, Kind::Int64, true, false);
-        let log_prob_flat = log_prob.squeeze().to_device_(Device::Cpu, Kind::Float, true, false);
+        let actions_sqz = actions
+            .squeeze()
+            .to_device_(Device::Cpu, Kind::Int64, true, false);
+        let log_prob_flat = log_prob
+            .squeeze()
+            .to_device_(Device::Cpu, Kind::Float, true, false);
 
         let step = env.step(Vec::<i64>::try_from(&actions_sqz).unwrap(), Device::Cpu);
 
@@ -69,11 +77,18 @@ pub fn get_experience<T: RolloutWorkerBackend>(
             *rew_sum += *step_rew as f64;
         }
 
-        *total_rewards += sum_rewards.iter().zip(step.is_done.iter()).map(|(r, b)| r * (*b as i32 as f64)).sum::<f64>();
+        *total_rewards += sum_rewards
+            .iter()
+            .zip(step.is_done.iter())
+            .map(|(r, b)| r * (*b as i32 as f64))
+            .sum::<f64>();
 
-        let is_done_f = step.is_done.iter().map(|v| *v as i32 as f32).collect::<Vec<f32>>();
+        let is_done_f = step
+            .is_done
+            .iter()
+            .map(|v| *v as i32 as f32)
+            .collect::<Vec<f32>>();
         *total_episodes += is_done_f.iter().sum::<f32>() as f64;
-
 
         // we want to flip so that we multiply by 0 every time is_done is set to true
         for (rew_sum, step_done) in sum_rewards.iter_mut().zip(step.is_done.iter()) {
@@ -87,7 +102,16 @@ pub fn get_experience<T: RolloutWorkerBackend>(
         let actions_vec = Vec::try_from(actions_sqz).unwrap();
         let log_probs_vec = Vec::try_from(log_prob_flat).unwrap();
 
-        send_local.send(StepStore { obs: step.obs, action: actions_vec, reward: step.reward, done: is_done_f, log_prob: log_probs_vec, model_ver: act_model_ver }).unwrap();
+        send_local
+            .send(StepStore {
+                obs: step.obs,
+                action: actions_vec,
+                reward: step.reward,
+                done: is_done_f,
+                log_prob: log_probs_vec,
+                model_ver: act_model_ver,
+            })
+            .unwrap();
 
         s += 1;
     }
@@ -98,11 +122,11 @@ pub fn get_experience<T: RolloutWorkerBackend>(
 // TODO: maybe convert function to struct so it can generate and hold the environment by itself, though we can do this with a function anyways so meh,
 // also maybe look into dealing with the progress bar
 // pub struct ExperienceGenerator {
-//     nprocs: i64, 
-//     // obs_space: i64, 
-//     device: Device, 
-//     // multi_prog_bar_total: &MultiProgress, 
-//     // total_prog_bar: &ProgressBar, 
+//     nprocs: i64,
+//     // obs_space: i64,
+//     device: Device,
+//     // multi_prog_bar_total: &MultiProgress,
+//     // total_prog_bar: &ProgressBar,
 //     // prog_bar_func: impl Fn(u64) -> ProgressBar,
 //     redis_url: String,
 //     act_model_config: LayerConfig,

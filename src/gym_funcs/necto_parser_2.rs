@@ -53,7 +53,12 @@ impl NectoAction {
                             if pitch == roll && roll == jump && jump == 0. {
                                 continue;
                             }
-                            let handbrake = if jump == 1. && (pitch != 0. || yaw != 0. || roll != 0.) { 1. } else { 0. };
+                            let handbrake =
+                                if jump == 1. && (pitch != 0. || yaw != 0. || roll != 0.) {
+                                    1.
+                                } else {
+                                    0.
+                                };
                             actions.push([boost, yaw, pitch, yaw, roll, jump, boost, handbrake]);
                         }
                     }

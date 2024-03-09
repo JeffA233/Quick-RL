@@ -1,18 +1,23 @@
 use rlgym_sim_gym::{
     common_values::{BALL_MAX_SPEED, BLUE_GOAL_BACK, BLUE_TEAM, ORANGE_GOAL_BACK, ORANGE_TEAM},
-    gamestates::{game_state::GameState, physics_object::{Position, Velocity}, player_data::PlayerData},
+    gamestates::{
+        game_state::GameState,
+        physics_object::{Position, Velocity},
+        player_data::PlayerData,
+    },
     math::{element_add_vec, element_mult_vec},
 };
 
 use rlgym_sim_gym::{
+    ball_goal_rewards::VelocityBallToGoalReward,
     // common_rewards::{
-        misc_rewards::{EventReward, SaveBoostReward, VelocityReward},
-        player_ball_rewards::VelocityPlayerToBallReward, ball_goal_rewards::VelocityBallToGoalReward,
+    misc_rewards::{EventReward, SaveBoostReward, VelocityReward},
+    player_ball_rewards::VelocityPlayerToBallReward,
+    // combined_reward::CombinedReward,
+    CombinedReward,
     // },
     // default_reward::RewardFn,
     RewardFn,
-    // combined_reward::CombinedReward,
-    CombinedReward,
 };
 
 // use numpy::*;
@@ -20,12 +25,13 @@ use rlgym_sim_gym::{
 use crossbeam_channel::Sender;
 use serde_json::from_reader;
 // use itertools::Itertools;
-use std::{
-    // collections::HashMap, 
-    fs::*, 
-    path::PathBuf, io::BufReader
-};
 use rustc_hash::FxHashMap as HashMap;
+use std::{
+    // collections::HashMap,
+    fs::*,
+    io::BufReader,
+    path::PathBuf,
+};
 // use itertools::min;
 use std::io::ErrorKind::*;
 use std::io::{BufWriter, Write};
@@ -119,10 +125,7 @@ pub fn get_rewards_and_weights() -> (Vec<Box<dyn RewardFn>>, Vec<f32>, Vec<bool>
 pub fn get_custom_reward_func_tester() -> Box<dyn RewardFn> {
     let (reward_fn_vec, weights, _reward_bools, _) = get_rewards_and_weights();
 
-    Box::new(CombinedReward::new(
-        reward_fn_vec,
-        weights,
-    ))
+    Box::new(CombinedReward::new(reward_fn_vec, weights))
 }
 
 /// returns configured custom rewards for Matrix usage, built for Rust multi-instance
@@ -170,13 +173,29 @@ impl BallAccelToGoal3 {
     pub fn new(normalized_speed_op: Option<f32>) -> Self {
         Self {
             // slot 1 is the current calculation, slot 0 is from the previous step
-            last_ball_vel_to_targ: VelocityTeamHolder { 
-                blue_team: [Velocity { x: 0., y: 0., z: 0.}; 2], 
-                orange_team: [Velocity { x: 0., y: 0., z: 0.}; 2], 
+            last_ball_vel_to_targ: VelocityTeamHolder {
+                blue_team: [Velocity {
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                }; 2],
+                orange_team: [Velocity {
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                }; 2],
             },
-            last_ball_dist_to_targ: PositionTeamHolder { 
-                blue_team: [Position { x: 0., y: 0., z: 0.}; 2], 
-                orange_team: [Position { x: 0., y: 0., z: 0.}; 2], 
+            last_ball_dist_to_targ: PositionTeamHolder {
+                blue_team: [Position {
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                }; 2],
+                orange_team: [Position {
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                }; 2],
             },
             last_state_tick: 0,
             normalized_speed: normalized_speed_op.unwrap_or(BALL_MAX_SPEED),
@@ -184,35 +203,55 @@ impl BallAccelToGoal3 {
     }
 
     fn update_vel_and_dist(&mut self, state: &GameState, reset: bool) {
-            if reset {
-                // we can get a rough estimate of the last distance by rolling back 1/(120/tick_skip) * ball velocity
-                let distance_to_subtract = state.ball.linear_velocity * (1./15.);
-                let previous_position = state.ball.position - distance_to_subtract;
-                let pos_diff = ORANGE_GOAL_BACK - previous_position;
-                self.last_ball_dist_to_targ.blue_team[0] = Position { x: pos_diff.x.abs(), y: pos_diff.y.abs(), z: pos_diff.z.abs() };
-                let pos_diff = BLUE_GOAL_BACK - previous_position;
-                self.last_ball_dist_to_targ.orange_team[0] = Position { x: pos_diff.x.abs(), y: pos_diff.y.abs(), z: pos_diff.z.abs() };
-            } else {
-                // move previous measurements to last slot
-                self.last_ball_dist_to_targ.blue_team[0] = self.last_ball_dist_to_targ.blue_team[1];
-                self.last_ball_dist_to_targ.orange_team[0] = self.last_ball_dist_to_targ.orange_team[1];
+        if reset {
+            // we can get a rough estimate of the last distance by rolling back 1/(120/tick_skip) * ball velocity
+            let distance_to_subtract = state.ball.linear_velocity * (1. / 15.);
+            let previous_position = state.ball.position - distance_to_subtract;
+            let pos_diff = ORANGE_GOAL_BACK - previous_position;
+            self.last_ball_dist_to_targ.blue_team[0] = Position {
+                x: pos_diff.x.abs(),
+                y: pos_diff.y.abs(),
+                z: pos_diff.z.abs(),
+            };
+            let pos_diff = BLUE_GOAL_BACK - previous_position;
+            self.last_ball_dist_to_targ.orange_team[0] = Position {
+                x: pos_diff.x.abs(),
+                y: pos_diff.y.abs(),
+                z: pos_diff.z.abs(),
+            };
+        } else {
+            // move previous measurements to last slot
+            self.last_ball_dist_to_targ.blue_team[0] = self.last_ball_dist_to_targ.blue_team[1];
+            self.last_ball_dist_to_targ.orange_team[0] = self.last_ball_dist_to_targ.orange_team[1];
 
-                self.last_ball_vel_to_targ.blue_team[0] = self.last_ball_vel_to_targ.blue_team[1];
-                self.last_ball_vel_to_targ.orange_team[0] = self.last_ball_vel_to_targ.orange_team[1];
-            }
-    
-            // update position difference
-            let pos_diff = ORANGE_GOAL_BACK - state.ball.position;
-            self.last_ball_dist_to_targ.blue_team[1] = Position { x: pos_diff.x.abs(), y: pos_diff.y.abs(), z: pos_diff.z.abs() };
-            let pos_diff = BLUE_GOAL_BACK - state.ball.position;
-            self.last_ball_dist_to_targ.orange_team[1] = Position { x: pos_diff.x.abs(), y: pos_diff.y.abs(), z: pos_diff.z.abs() };
-    
-            // update velocity to objective
-            self.last_ball_vel_to_targ.blue_team[1] = (self.last_ball_dist_to_targ.blue_team[0] - self.last_ball_dist_to_targ.blue_team[1]).into();
-            // multiply by 15 (120/tick_skip) to get actual velocity in uu/s
-            self.last_ball_vel_to_targ.blue_team[1] = self.last_ball_vel_to_targ.blue_team[1] * 15.;
-            self.last_ball_vel_to_targ.orange_team[1] = (self.last_ball_dist_to_targ.orange_team[0] - self.last_ball_dist_to_targ.orange_team[1]).into();
-            self.last_ball_vel_to_targ.orange_team[1] = self.last_ball_vel_to_targ.orange_team[1] * 15.;
+            self.last_ball_vel_to_targ.blue_team[0] = self.last_ball_vel_to_targ.blue_team[1];
+            self.last_ball_vel_to_targ.orange_team[0] = self.last_ball_vel_to_targ.orange_team[1];
+        }
+
+        // update position difference
+        let pos_diff = ORANGE_GOAL_BACK - state.ball.position;
+        self.last_ball_dist_to_targ.blue_team[1] = Position {
+            x: pos_diff.x.abs(),
+            y: pos_diff.y.abs(),
+            z: pos_diff.z.abs(),
+        };
+        let pos_diff = BLUE_GOAL_BACK - state.ball.position;
+        self.last_ball_dist_to_targ.orange_team[1] = Position {
+            x: pos_diff.x.abs(),
+            y: pos_diff.y.abs(),
+            z: pos_diff.z.abs(),
+        };
+
+        // update velocity to objective
+        self.last_ball_vel_to_targ.blue_team[1] = (self.last_ball_dist_to_targ.blue_team[0]
+            - self.last_ball_dist_to_targ.blue_team[1])
+            .into();
+        // multiply by 15 (120/tick_skip) to get actual velocity in uu/s
+        self.last_ball_vel_to_targ.blue_team[1] = self.last_ball_vel_to_targ.blue_team[1] * 15.;
+        self.last_ball_vel_to_targ.orange_team[1] = (self.last_ball_dist_to_targ.orange_team[0]
+            - self.last_ball_dist_to_targ.orange_team[1])
+            .into();
+        self.last_ball_vel_to_targ.orange_team[1] = self.last_ball_vel_to_targ.orange_team[1] * 15.;
     }
 }
 
@@ -233,15 +272,26 @@ impl RewardFn for BallAccelToGoal3 {
     fn get_reward(&mut self, player: &PlayerData, state: &GameState) -> f32 {
         if self.last_state_tick != state.tick_num {
             self.update_vel_and_dist(state, false);
-            
+
             self.last_state_tick = state.tick_num;
         }
 
         if player.ball_touched {
             let ret = if player.team_num == BLUE_TEAM {
-                (self.last_ball_vel_to_targ.blue_team[1] - self.last_ball_vel_to_targ.blue_team[0]).divide_by_var(self.normalized_speed).into_array().iter().sum::<f32>() * 4.0
+                (self.last_ball_vel_to_targ.blue_team[1] - self.last_ball_vel_to_targ.blue_team[0])
+                    .divide_by_var(self.normalized_speed)
+                    .into_array()
+                    .iter()
+                    .sum::<f32>()
+                    * 4.0
             } else {
-                (self.last_ball_vel_to_targ.orange_team[1] - self.last_ball_vel_to_targ.orange_team[0]).divide_by_var(self.normalized_speed).into_array().iter().sum::<f32>() * 4.0
+                (self.last_ball_vel_to_targ.orange_team[1]
+                    - self.last_ball_vel_to_targ.orange_team[0])
+                    .divide_by_var(self.normalized_speed)
+                    .into_array()
+                    .iter()
+                    .sum::<f32>()
+                    * 4.0
             };
             if ret > 0. {
                 ret
@@ -315,11 +365,11 @@ impl RewardFn for FlipPunish {
                 self.flip_count += 1;
             }
             if self.flip_count >= self.flip_threshold {
-                return -1.
+                return -1.;
             // } else if self.flip_count >= self.flip_threshold {
             //     out = -(self.flip_count as f32 / self.flip_threshold as f32);
             } else {
-                return 0.
+                return 0.;
             }
         } else {
             self.timer += 1;
@@ -408,15 +458,19 @@ impl RewardFn for LeftKickoffReward {
                             if car.car_id == blue_car.car_id {
                                 continue;
                             }
-                            if car.car_data.position.y >= blue_car.car_data.position.y && car.car_data.position.x > blue_car.car_data.position.x {
+                            if car.car_data.position.y >= blue_car.car_data.position.y
+                                && car.car_data.position.x > blue_car.car_data.position.x
+                            {
                                 blue_car = car;
                             }
                         } else {
                             if car.car_id == orange_car.car_id {
                                 continue;
                             }
-                            if car.inverted_car_data.position.y >= orange_car.inverted_car_data.position.y
-                                && car.inverted_car_data.position.x > orange_car.inverted_car_data.position.x
+                            if car.inverted_car_data.position.y
+                                >= orange_car.inverted_car_data.position.y
+                                && car.inverted_car_data.position.x
+                                    > orange_car.inverted_car_data.position.x
                             {
                                 orange_car = car;
                             }
@@ -491,7 +545,7 @@ impl RewardFn for GatherBoostReward {
         //     values_total += values;
         // }
         let values_total: f32 = self.player_episode_boost_total.values().sum();
-        
+
         if values_total < 0.1 {
             self.avg_ep_gather_ratio = 1.5;
         } else {
@@ -502,9 +556,10 @@ impl RewardFn for GatherBoostReward {
             // if boost_per_tick >= self.target_ep_gather_rate {
             //     self.avg_ep_gather_ratio = 1.;
             // } else {
-                // self.avg_ep_gather_ratio = (2. - boost_per_tick / self.target_ep_gather_rate).ln() * 4.;
-                // (state.ball.position.z - self.target_height + (self.target_height / 4.)) / (self.target_height / 4.).powf(1.25);
-            self.avg_ep_gather_ratio = (self.target_ep_gather_rate - boost_per_tick + 0.002) / (0.002);
+            // self.avg_ep_gather_ratio = (2. - boost_per_tick / self.target_ep_gather_rate).ln() * 4.;
+            // (state.ball.position.z - self.target_height + (self.target_height / 4.)) / (self.target_height / 4.).powf(1.25);
+            self.avg_ep_gather_ratio =
+                (self.target_ep_gather_rate - boost_per_tick + 0.002) / (0.002);
 
             if self.avg_ep_gather_ratio < 0.5 {
                 self.avg_ep_gather_ratio = 0.5;
@@ -542,7 +597,8 @@ impl RewardFn for GatherBoostReward {
             match player_ep_total_op {
                 Some(val) => *val += boost_differential,
                 None => {
-                    self.player_episode_boost_total.insert(player.car_id, boost_differential);
+                    self.player_episode_boost_total
+                        .insert(player.car_id, boost_differential);
                 }
             };
             boost_differential *= self.avg_ep_gather_ratio;
@@ -610,7 +666,8 @@ impl RewardFn for GatherBoostRewardBasic {
             match player_ep_total_op {
                 Some(val) => *val += boost_differential,
                 None => {
-                    self.player_episode_boost_total.insert(player.car_id, boost_differential);
+                    self.player_episode_boost_total
+                        .insert(player.car_id, boost_differential);
                 }
             };
             boost_differential *= self.avg_ep_gather_ratio;
@@ -632,7 +689,7 @@ impl RewardFn for GatherBoostRewardBasic {
 pub struct EventRewardTeamGoal {
     weight: f32,
     last_registered_value_blue: i32,
-    last_registered_value_orange: i32
+    last_registered_value_orange: i32,
 }
 
 impl EventRewardTeamGoal {
@@ -640,7 +697,7 @@ impl EventRewardTeamGoal {
         EventRewardTeamGoal {
             weight: team_goal,
             last_registered_value_blue: 0,
-            last_registered_value_orange: 0
+            last_registered_value_orange: 0,
         }
     }
 
@@ -692,7 +749,7 @@ impl RewardFn for EventRewardTeamGoal {
 pub struct EventRewardConcede {
     weight: f32,
     last_registered_value_blue: i32,
-    last_registered_value_orange: i32
+    last_registered_value_orange: i32,
 }
 
 impl EventRewardConcede {
@@ -700,7 +757,7 @@ impl EventRewardConcede {
         EventRewardConcede {
             weight: concede,
             last_registered_value_blue: 0,
-            last_registered_value_orange: 0
+            last_registered_value_orange: 0,
         }
     }
 
@@ -748,7 +805,7 @@ impl RewardFn for EventRewardConcede {
 /// "Wrapper" that collects a set of boxed reward functions and iterates through them to get a single float.
 /// Has other functionality including reward logging that sends info to a separate singular thread which writes for all instances
 /// instead of each instance having its own writer
-/// 
+///
 /// NOTE: This only works with at least one agent per team.
 /// TODO: Normalize reward logging based on number of steps?
 pub struct SB3CombinedLogRewardMultInstTeam {
@@ -814,7 +871,8 @@ impl RewardFn for SB3CombinedLogRewardMultInstTeam {
         if self.last_tick_calculated != state.tick_num {
             // calculate individual rewards
             for agent in &state.players {
-                let final_val: f32 = self.combined_reward_fns
+                let final_val: f32 = self
+                    .combined_reward_fns
                     .iter_mut()
                     .zip(&mut self.returns[agent.car_id as usize])
                     .zip(&self.combined_reward_weights)
@@ -856,9 +914,11 @@ impl RewardFn for SB3CombinedLogRewardMultInstTeam {
                     .sum();
 
                 if agent.team_num == BLUE_TEAM {
-                    self.blue_team_vals.insert(agent.car_id, final_val * self.final_mult);
+                    self.blue_team_vals
+                        .insert(agent.car_id, final_val * self.final_mult);
                 } else {
-                    self.orange_team_vals.insert(agent.car_id, final_val * self.final_mult);
+                    self.orange_team_vals
+                        .insert(agent.car_id, final_val * self.final_mult);
                 }
             }
 
@@ -872,15 +932,25 @@ impl RewardFn for SB3CombinedLogRewardMultInstTeam {
             // let mut dbg_val = 0.;
             // blue team spirit calc
             for value in self.blue_team_vals.values_mut() {
-                *value = ((1. - self.team_spirit) * *value) + (self.team_spirit * blue_team_val_mean) - orange_team_val_mean;
-                assert!(!value.is_nan() || !value.is_infinite(), "found NaN or inf in combined team rew blue: {value}");
+                *value = ((1. - self.team_spirit) * *value)
+                    + (self.team_spirit * blue_team_val_mean)
+                    - orange_team_val_mean;
+                assert!(
+                    !value.is_nan() || !value.is_infinite(),
+                    "found NaN or inf in combined team rew blue: {value}"
+                );
                 // dbg_val += *value;
             }
 
             // orange team spirit calc
             for value in self.orange_team_vals.values_mut() {
-                *value = ((1. - self.team_spirit) * *value) + (self.team_spirit * orange_team_val_mean) - blue_team_val_mean;
-                assert!(!value.is_nan() || !value.is_infinite(), "found NaN or inf in combined team rew orange: {value}");
+                *value = ((1. - self.team_spirit) * *value)
+                    + (self.team_spirit * orange_team_val_mean)
+                    - blue_team_val_mean;
+                assert!(
+                    !value.is_nan() || !value.is_infinite(),
+                    "found NaN or inf in combined team rew orange: {value}"
+                );
                 // dbg_val += *value;
             }
 
@@ -900,7 +970,8 @@ impl RewardFn for SB3CombinedLogRewardMultInstTeam {
         if self.last_tick_calculated != state.tick_num {
             // calculate individual rewards
             for agent in &state.players {
-                let final_val: f32 = self.combined_reward_fns
+                let final_val: f32 = self
+                    .combined_reward_fns
                     .iter_mut()
                     .zip(&mut self.returns[agent.car_id as usize])
                     .zip(&self.combined_reward_weights)
@@ -946,13 +1017,17 @@ impl RewardFn for SB3CombinedLogRewardMultInstTeam {
             // let mut dbg_val = 0.;
             // blue team spirit calc
             for value in self.blue_team_vals.values_mut() {
-                *value = ((1. - self.team_spirit) * *value) + (self.team_spirit * blue_team_val_mean) - orange_team_val_mean;
+                *value = ((1. - self.team_spirit) * *value)
+                    + (self.team_spirit * blue_team_val_mean)
+                    - orange_team_val_mean;
                 // dbg_val += *value;
             }
 
             // orange team spirit calc
             for value in self.orange_team_vals.values_mut() {
-                *value = ((1. - self.team_spirit) * *value) + (self.team_spirit * orange_team_val_mean) - blue_team_val_mean;
+                *value = ((1. - self.team_spirit) * *value)
+                    + (self.team_spirit * orange_team_val_mean)
+                    - blue_team_val_mean;
                 // dbg_val += *value;
             }
 
@@ -1087,7 +1162,12 @@ pub struct SB3CombinedLogReward {
 }
 
 impl SB3CombinedLogReward {
-    fn new(reward_structs: Vec<Box<dyn RewardFn>>, reward_weights: Vec<f32>, file_location: Option<String>, final_mult: Option<f32>) -> Self {
+    fn new(
+        reward_structs: Vec<Box<dyn RewardFn>>,
+        reward_weights: Vec<f32>,
+        file_location: Option<String>,
+        final_mult: Option<f32>,
+    ) -> Self {
         let file_location = match file_location {
             Some(file_location) => file_location,
             None => "./combinedlogfiles".to_owned(),
@@ -1116,7 +1196,11 @@ impl SB3CombinedLogReward {
                 panic!("too many attempts taken to lock the file in new")
             }
 
-            let out = OpenOptions::new().create(true).write(true).truncate(true).open(reward_file_path);
+            let out = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(reward_file_path);
 
             let file = match out {
                 Err(out) => {

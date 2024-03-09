@@ -1,11 +1,8 @@
 use bytebuffer::ByteBuffer;
 use serde::{Deserialize, Serialize};
-use tch::{Tensor, TchError, nn::VarStore};
-
-
+use tch::{nn::VarStore, TchError, Tensor};
 
 // const ROLLOUT_KEY: &str = "rollouts";
-
 
 pub fn tensor_to_bytes(tensor: &Tensor) -> Result<Vec<u8>, TchError> {
     let mut buffer = ByteBuffer::new();
@@ -14,7 +11,7 @@ pub fn tensor_to_bytes(tensor: &Tensor) -> Result<Vec<u8>, TchError> {
 
     match op {
         Ok(_) => Ok(buffer.into_vec()),
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
 }
 
@@ -25,7 +22,7 @@ pub fn varstore_to_bytes(vs: &VarStore) -> Result<Vec<u8>, TchError> {
 
     match op {
         Ok(_) => Ok(buffer.into_vec()),
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
 }
 

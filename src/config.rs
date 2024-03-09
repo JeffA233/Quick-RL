@@ -53,7 +53,6 @@ fn default_localhost() -> String {
     "localhost".to_string()
 }
 
-
 fn default_default() -> String {
     "default".to_string()
 }
@@ -88,7 +87,7 @@ pub struct LayerConfig {
 
 #[derive(Deserialize)]
 pub struct CustomLayerConfig {
-    pub layer_vec: Vec<i64>
+    pub layer_vec: Vec<i64>,
 }
 
 impl Configuration {
@@ -103,7 +102,11 @@ impl Configuration {
         match file.read_to_string(&mut contents) {
             Ok(_) => (), // Reading was successful
             Err(error) => {
-                panic!("Error reading contents of {}: {}", config_file.display(), error);
+                panic!(
+                    "Error reading contents of {}: {}",
+                    config_file.display(),
+                    error
+                );
             }
         };
         serde_json::from_str(&contents)

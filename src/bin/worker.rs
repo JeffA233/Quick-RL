@@ -9,7 +9,7 @@ use crossbeam_channel::bounded;
    See https://spinningup.openai.com/en/latest/algorithms/ppo.html for a
    reference python implementation.
 */
-use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 // use redis::{Client, Commands};
 use serde::Deserialize;
 
@@ -17,9 +17,14 @@ use tch::Device;
 
 use quick_rl::{
     algorithms::common_utils::{
-        gather_experience::ppo_gather::get_experience, 
-        rollout_buffer::rollout_buffer_worker::{buffer_worker, RedisWorkerBackend, RolloutWorkerBackend}
-    }, config::Configuration, models::ppo::default_ppo::LayerConfig, vec_gym_env::VecGymEnv
+        gather_experience::ppo_gather::get_experience,
+        rollout_buffer::rollout_buffer_worker::{
+            buffer_worker, RedisWorkerBackend, RolloutWorkerBackend,
+        },
+    },
+    config::Configuration,
+    models::ppo::default_ppo::LayerConfig,
+    vec_gym_env::VecGymEnv,
 };
 
 // NPROCS needs to be even to function properly (2 agents per 1v1 match)
@@ -32,7 +37,6 @@ use quick_rl::{
 // // const NSTEPS: i64 = 1;
 // const UPDATES: i64 = 1000000;
 
-
 pub fn main() {
     // NOTE:
     // rough benchmark for reward is ~4.26 for rew (which is displayed only in the worker for now) by update idx 150 according to the learner side
@@ -44,7 +48,11 @@ pub fn main() {
     let config = match Configuration::load_configuration(config_path.as_path()) {
         Ok(config) => config,
         Err(error) => {
-            panic!("Error loading configuration from '{}': {}", config_path.display(), error);
+            panic!(
+                "Error loading configuration from '{}': {}",
+                config_path.display(),
+                error
+            );
         }
     };
 
@@ -65,11 +73,23 @@ pub fn main() {
     team_size.extend(vec![3; config.gamemodes.num_3s]);
 
     let mut self_plays = Vec::new();
-    self_plays.extend(vec![false; config.gamemodes.num_1s - config.gamemodes.num_1s_selfplay]);
+    self_plays.extend(vec![
+        false;
+        config.gamemodes.num_1s
+            - config.gamemodes.num_1s_selfplay
+    ]);
     self_plays.extend(vec![true; config.gamemodes.num_1s_selfplay]);
-    self_plays.extend(vec![false; config.gamemodes.num_2s - config.gamemodes.num_2s_selfplay]);
+    self_plays.extend(vec![
+        false;
+        config.gamemodes.num_2s
+            - config.gamemodes.num_2s_selfplay
+    ]);
     self_plays.extend(vec![true; config.gamemodes.num_2s_selfplay]);
-    self_plays.extend(vec![false; config.gamemodes.num_3s - config.gamemodes.num_3s_selfplay]);
+    self_plays.extend(vec![
+        false;
+        config.gamemodes.num_3s
+            - config.gamemodes.num_3s_selfplay
+    ]);
     self_plays.extend(vec![true; config.gamemodes.num_3s_selfplay]);
 
     // make progress bar
@@ -90,26 +110,35 @@ pub fn main() {
     // get Redis connection
     let db = config.redis.dbnum.clone();
     let password = if !config.redis.password_env_var.is_empty() {
-        env::var_os(&config.redis.password_env_var).expect("Failed to get password") 
-        }
-        else{
-            OsString::from("")
-        };
-    let password_str = password.to_str().expect("Failed to convert password to str");
+        env::var_os(&config.redis.password_env_var).expect("Failed to get password")
+    } else {
+        OsString::from("")
+    };
+    let password_str = password
+        .to_str()
+        .expect("Failed to convert password to str");
     let redis_address = config.redis.ipaddress;
-    let redis_str = format!("redis://{}:{}@{}/{}", config.redis.username, password_str, redis_address, db);
+    let redis_str = format!(
+        "redis://{}:{}@{}/{}",
+        config.redis.username, password_str, redis_address, db
+    );
     let mut backend = RedisWorkerBackend::new(redis_str.clone());
     // let backend_con = RolloutWorkerRedis::new()
-
 
     // moved here from gather_experience since otherwise we have to wait for full episodes to be submitted which is bad
     let (send_local, rx) = bounded(5000);
     let worker_url = redis_str.to_owned();
     println!("we're about to spawn the thread");
     thread::spawn(move || {
-        buffer_worker(rx, move || RedisWorkerBackend::new(worker_url.clone()), obs_space, n_steps, n_procs as usize);
+        buffer_worker(
+            rx,
+            move || RedisWorkerBackend::new(worker_url.clone()),
+            obs_space,
+            n_steps,
+            n_procs as usize,
+        );
     });
-    
+
     let act_config_data = backend.get_key_value_raw("actor_structure").unwrap();
     let flex_read = flexbuffers::Reader::get_root(act_config_data.as_slice()).unwrap();
     let act_config = LayerConfig::deserialize(flex_read).unwrap();
@@ -135,17 +164,17 @@ pub fn main() {
 
         get_experience(
             &mut backend,
-            n_steps, 
-            n_procs, 
-            device, 
-            &multi_prog_bar_total, 
-            &total_prog_bar, 
-            prog_bar_func, 
+            n_steps,
+            n_procs,
+            device,
+            &multi_prog_bar_total,
+            &total_prog_bar,
+            prog_bar_func,
             act_config.clone(),
-            &mut env, 
+            &mut env,
             &send_local,
-            &mut sum_rewards, 
-            &mut total_rewards, 
+            &mut sum_rewards,
+            &mut total_rewards,
             &mut total_episodes,
             config.network.act_func.clone(),
         );
@@ -153,8 +182,13 @@ pub fn main() {
         total_steps += n_steps * n_procs;
 
         if update_index > 0 && update_index % 25 == 0 {
-            println!("worker loop idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}",
-             update_index, total_episodes, total_rewards / total_episodes, total_steps);
+            println!(
+                "worker loop idx: {}, total eps: {:.0}, episode rewards: {}, total steps: {}",
+                update_index,
+                total_episodes,
+                total_rewards / total_episodes,
+                total_steps
+            );
             total_rewards = 0.;
             total_episodes = 0.;
         }

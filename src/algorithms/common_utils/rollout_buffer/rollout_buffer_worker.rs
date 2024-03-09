@@ -7,9 +7,9 @@ use serde::Serialize;
 use super::rollout_buffer_utils::ExperienceStore;
 
 pub trait RolloutWorkerBackend {
-    fn get_key_value_i64(&mut self, key: &str) ->  Result<i64, Box<dyn std::error::Error>>;
-    fn get_key_value_bool(&mut self, key: &str) ->  Result<bool, Box<dyn std::error::Error>>;
-    fn get_key_value_raw(&mut self, key: &str) ->  Result<Vec<u8>, Box<dyn std::error::Error>>;
+    fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>>;
+    fn get_key_value_bool(&mut self, key: &str) -> Result<bool, Box<dyn std::error::Error>>;
+    fn get_key_value_raw(&mut self, key: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>>;
     fn rpush(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
 }
 
@@ -46,7 +46,15 @@ impl<T: RolloutWorkerBackend> RolloutWorker<T> {
 
 impl<T: RolloutWorkerBackend> RolloutWorker<T> {
     /// note here that the state is actually the previous state t+0 from the gym and not the current one which is t+1
-    fn push_experience(&mut self, state: Vec<f32>, reward: f32, action: f32, done: f32, log_prob: f32, model_ver: i64) -> bool {
+    fn push_experience(
+        &mut self,
+        state: Vec<f32>,
+        reward: f32,
+        action: f32,
+        done: f32,
+        log_prob: f32,
+        model_ver: i64,
+    ) -> bool {
         self.states.push(state);
         // self.states.iter_mut().zip(state).map(|(vec, val)| vec.push(val)).for_each(drop);
         self.rewards.push(reward);
@@ -61,15 +69,20 @@ impl<T: RolloutWorkerBackend> RolloutWorker<T> {
         if done == 1. {
             let last_state = self.states.pop().unwrap();
             // new_state_vec.push(last_state.clone());
-            assert!(self.states.len() == self.rewards.len(), "states length was not correct compared to rewards in exp gather func: {}, {}", self.states.len(), self.rewards.len());
+            assert!(
+                self.states.len() == self.rewards.len(),
+                "states length was not correct compared to rewards in exp gather func: {}, {}",
+                self.states.len(),
+                self.rewards.len()
+            );
             // TODO: shouldn't need to clone here, feels dumb
-            self.submit_rollout(ExperienceStore { 
-                s_states: self.states.clone(), 
-                s_rewards: self.rewards.clone(), 
-                s_actions: self.actions.clone(), 
-                dones_f: self.dones.clone(), 
-                s_log_probs: self.log_probs.clone(), 
-                terminal_obs: last_state.clone(), 
+            self.submit_rollout(ExperienceStore {
+                s_states: self.states.clone(),
+                s_rewards: self.rewards.clone(),
+                s_actions: self.actions.clone(),
+                dones_f: self.dones.clone(),
+                s_log_probs: self.log_probs.clone(),
+                terminal_obs: last_state.clone(),
                 model_ver: self.model_version,
             });
             // start new episodes
@@ -90,7 +103,7 @@ impl<T: RolloutWorkerBackend> RolloutWorker<T> {
 
             self.model_version = model_ver;
 
-            return true
+            return true;
         }
         false
         // }
@@ -121,21 +134,20 @@ pub struct RedisWorkerBackend {
 impl RedisWorkerBackend {
     pub fn new(redis_url: String) -> Self {
         let redis_client = Client::open(redis_url).unwrap();
-        let redis_con = redis_client.get_connection_with_timeout(Duration::from_secs(30)).unwrap();
+        let redis_con = redis_client
+            .get_connection_with_timeout(Duration::from_secs(30))
+            .unwrap();
         Self { redis_con }
     }
 }
 
-impl RolloutWorkerBackend for RedisWorkerBackend{
-
+impl RolloutWorkerBackend for RedisWorkerBackend {
     fn get_key_value_i64(&mut self, key: &str) -> Result<i64, Box<dyn std::error::Error>> {
-        self.redis_con.get(key)
-            .map_err(|e| e.into())
+        self.redis_con.get(key).map_err(|e| e.into())
     }
 
     fn get_key_value_bool(&mut self, key: &str) -> Result<bool, Box<dyn std::error::Error>> {
-        self.redis_con.get(key)
-            .map_err(|e| e.into())
+        self.redis_con.get(key).map_err(|e| e.into())
     }
 
     fn rpush(&mut self, key: &str, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
@@ -143,9 +155,8 @@ impl RolloutWorkerBackend for RedisWorkerBackend{
         Ok(())
     }
 
-    fn get_key_value_raw(&mut self, key: &str) ->  Result<Vec<u8>, Box<dyn std::error::Error>> {
-        self.redis_con.get(key)
-        .map_err(|e| e.into())
+    fn get_key_value_raw(&mut self, key: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        self.redis_con.get(key).map_err(|e| e.into())
     }
 }
 
@@ -168,7 +179,7 @@ pub fn buffer_worker<T: RolloutWorkerBackend, F: Fn() -> T + Send + 'static>(
 ) {
     // let rollout_worker = RolloutBufferWorker::new(redis_url, obs_space, nsteps);
     let mut rollout_bufs = Vec::new();
-    
+
     // let rollout_worker = RolloutWorker::new(redis_backend, obs_space, nsteps);
     for _i in 0..nprocs {
         // let backend_box = backend_factory();
@@ -189,9 +200,15 @@ pub fn buffer_worker<T: RolloutWorkerBackend, F: Fn() -> T + Send + 'static>(
         };
         // rollout_worker.push_experience(step_store.obs, step_store.reward, step_store.action, step_store.done, step_store.log_prob);
         for (i, buf) in rollout_bufs.iter_mut().enumerate() {
-            buf.push_experience(step_store.obs[i].clone(), step_store.reward[i], step_store.action[i], step_store.done[i], step_store.log_prob[i], step_store.model_ver);
+            buf.push_experience(
+                step_store.obs[i].clone(),
+                step_store.reward[i],
+                step_store.action[i],
+                step_store.done[i],
+                step_store.log_prob[i],
+                step_store.model_ver,
+            );
         }
-        
     }
 }
 
@@ -210,7 +227,7 @@ pub fn buffer_worker<T: RolloutWorkerBackend, F: Fn() -> T + Send + 'static>(
 //             redis_con,
 //         }
 //     }
-    
+
 //     /// note here that the state is actually the previous state t+0 from the gym and not the current one which is t+1
 //     // pub fn push_experience(&mut self, state: Vec<f32>, reward: f32, action: f32, done: f32, log_prob: f32) {
 //     //     self.states.push(state);
@@ -220,7 +237,7 @@ pub fn buffer_worker<T: RolloutWorkerBackend, F: Fn() -> T + Send + 'static>(
 //     //     self.log_probs.push(log_prob);
 //     // }
 
-//     pub fn submit_rollout(&mut self, experience: ExperienceStore) {  
+//     pub fn submit_rollout(&mut self, experience: ExperienceStore) {
 //         // serialize data
 //         let mut s = flexbuffers::FlexbufferSerializer::new();
 //         experience.serialize(&mut s).unwrap();

@@ -1,17 +1,13 @@
 // use std::{
-//     fmt::{Display, Debug}, 
+//     fmt::{Display, Debug},
 //     ops::{Deref, DerefMut}
 // };
 
-use tch::{
-    // nn, 
-    // Kind, 
-    Tensor, 
-    // Device
-};
+use tch::Tensor;
 
 pub fn print_tensor_vecf32(ten_name: &str, ten: &Tensor) {
-    println!("Tensor {ten_name} {{\n   size: {:#?},\n  device: {:#?},\n    val: {:#?},\n}}\n",
+    println!(
+        "Tensor {ten_name} {{\n   size: {:#?},\n  device: {:#?},\n    val: {:#?},\n}}\n",
         ten.size(),
         ten.device(),
         Vec::<f32>::try_from(ten).unwrap(),
@@ -19,7 +15,8 @@ pub fn print_tensor_vecf32(ten_name: &str, ten: &Tensor) {
 }
 
 pub fn print_tensor_noval(ten_name: &str, ten: &Tensor) {
-    println!("Tensor {ten_name} {{\n   size: {:#?},\n  device: {:#?},\n\n",
+    println!(
+        "Tensor {ten_name} {{\n   size: {:#?},\n  device: {:#?},\n\n",
         ten.size(),
         ten.device(),
         // Vec::<f32>::try_from(ten).unwrap(),
@@ -27,7 +24,8 @@ pub fn print_tensor_noval(ten_name: &str, ten: &Tensor) {
 }
 
 pub fn print_tensor_2df32(ten_name: &str, ten: &Tensor) {
-    println!("Tensor {ten_name} {{\n   size: {:#?},\n  device: {:#?},\n    val: {:#?},\n}}\n",
+    println!(
+        "Tensor {ten_name} {{\n   size: {:#?},\n  device: {:#?},\n    val: {:#?},\n}}\n",
         ten.size(),
         ten.device(),
         Vec::<Vec<f32>>::try_from(ten).unwrap(),
@@ -35,7 +33,8 @@ pub fn print_tensor_2df32(ten_name: &str, ten: &Tensor) {
 }
 
 pub fn print_tensor_3df32(ten_name: &str, ten: &Tensor) {
-    println!("Tensor {ten_name} {{\n   size: {:#?},\n  device: {:#?},\n    val: {:#?},\n}}\n",
+    println!(
+        "Tensor {ten_name} {{\n   size: {:#?},\n  device: {:#?},\n    val: {:#?},\n}}\n",
         ten.size(),
         ten.device(),
         Vec::<Vec<Vec<f32>>>::try_from(ten).unwrap(),
@@ -72,7 +71,7 @@ pub fn print_tensor_value(ten: &Tensor) {
 //         min: f64,
 //         device: Device,
 //     }
-    
+
 //     impl TensorDisplay {
 //         pub fn new(ten: Tensor) -> Self {
 //             let size = ten.size();
@@ -90,7 +89,7 @@ pub fn print_tensor_value(ten: &Tensor) {
 //             }
 //         }
 //     }
-    
+
 //     impl Display for TensorDisplay {
 //         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 //             write!(f, "
@@ -105,7 +104,7 @@ pub fn print_tensor_value(ten: &Tensor) {
 //             self.device,)
 //         }
 //     }
-    
+
 //     impl Debug for TensorDisplay {
 //         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 //             write!(f, "
@@ -120,15 +119,15 @@ pub fn print_tensor_value(ten: &Tensor) {
 //             self.device,)
 //         }
 //     }
-    
+
 //     impl Deref for TensorDisplay {
 //         type Target = Tensor;
-    
+
 //         fn deref(&self) -> &Self::Target {
 //             &self.tensor
 //         }
 //     }
-    
+
 //     impl DerefMut for TensorDisplay {
 //         fn deref_mut(&mut self) -> &mut Self::Target {
 //             &mut self.tensor

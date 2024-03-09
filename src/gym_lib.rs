@@ -29,8 +29,8 @@ use itertools::izip;
 // use ndarray::Dim;
 // use numpy::PyArray;
 use rocketsim_rs::{
-    self, 
-    // sim::CarControls, 
+    self,
+    // sim::CarControls,
     // GameState as GameState_rocketsim
 };
 // use std::collections::VecDeque;
@@ -41,28 +41,24 @@ use std::path::Path;
 
 use rlgym_sim_gym::Gym;
 // use pyo3::{
-//     prelude::*, 
+//     prelude::*,
 //     // exceptions::PyTypeError
 // };
 // use rayon::prelude::*;
 
 use crate::gym_funcs::custom_rewards::GatherBoostRewardBasic;
 // use action_parsers::{
-//     necto_parser_2::NectoAction, 
+//     necto_parser_2::NectoAction,
 //     // action_parser::ActionParser
 // };
 use crate::gym_funcs::necto_parser_2::NectoAction;
-use obs_builders::{
-    // aspo4_array_2::AdvancedObsPadderStacker2,
-    // aspo4_array_3::AdvancedObsPadderStacker3,
-    obs_builder::ObsBuilder
-};
+use obs_builders::obs_builder::ObsBuilder;
 // use crate::gym_funcs::aspo4_array_3::AdvancedObsPadderStacker3;
 // use reward_functions::{
 //     custom_rewards::{
-//         get_custom_reward_func, 
+//         get_custom_reward_func,
 //         get_custom_reward_func_mult_inst
-//     }, 
+//     },
 //     // default_reward::RewardFn
 // };
 // use crate::gym_funcs::custom_rewards::{
@@ -72,12 +68,12 @@ use obs_builders::{
 // };
 // use action_parsers::discrete_act::DiscreteAction;
 // use conditionals::{
-//     custom_conditions::CombinedTerminalConditions, 
+//     custom_conditions::CombinedTerminalConditions,
 //     // terminal_condition::TerminalCondition
 // };
 use crate::gym_funcs::custom_conditions::CombinedTerminalConditions;
 // use state_setters::{
-//     custom_state_setters::custom_state_setters, 
+//     custom_state_setters::custom_state_setters,
 //     // state_setter::StateSetter
 // };
 use crate::gym_funcs::custom_state_setters::custom_state_setters;
@@ -109,7 +105,7 @@ impl GymWrapper {
         let act_parse = Box::new(NectoAction::new());
         let state_set = Box::new(custom_state_setters(team_size, Some(0)));
         let game_config = GameConfig {
-            tick_skip, 
+            tick_skip,
             team_size,
             ..Default::default()
         };
@@ -122,10 +118,7 @@ impl GymWrapper {
             action_parser: act_parse,
             state_setter: state_set,
         };
-        let gym = make::make(
-            make_config,
-            None
-        );
+        let gym = make::make(make_config, None);
         GymWrapper { gym }
     }
 
@@ -133,7 +126,10 @@ impl GymWrapper {
         self.gym.reset(Some(false), Some(0))
     }
 
-    pub fn step(&mut self, actions: Vec<Vec<f32>>) -> (Vec<Vec<f32>>, Vec<f32>, bool, HashMap<String, f32>) {
+    pub fn step(
+        &mut self,
+        actions: Vec<Vec<f32>>,
+    ) -> (Vec<Vec<f32>>, Vec<f32>, bool, HashMap<String, f32>) {
         self.gym.step(actions)
     }
 
@@ -153,7 +149,16 @@ pub struct GymWrapperRender {
 impl GymWrapperRender {
     // #[new]
     /// create the gym wrapper to be used (team_size: i32, tick_skip: usize)
-    pub fn new(team_size: usize, gravity: f32, boost: f32, self_play: bool, tick_skip: usize, render: bool, render_speed: f32, seed: Option<u64>) -> Self {
+    pub fn new(
+        team_size: usize,
+        gravity: f32,
+        boost: f32,
+        self_play: bool,
+        tick_skip: usize,
+        render: bool,
+        render_speed: f32,
+        seed: Option<u64>,
+    ) -> Self {
         let term_cond = Box::new(CombinedTerminalConditions::new(tick_skip));
         let reward_fn = Box::new(GatherBoostRewardBasic::new(None));
         // let obs_build = Box::new(AdvancedObsPadderStacker3::new(None, Some(0)));
@@ -162,7 +167,7 @@ impl GymWrapperRender {
         let act_parse = Box::new(NectoAction::new());
         let state_set = Box::new(custom_state_setters(team_size, Some(0)));
         let game_config = GameConfig {
-            gravity, 
+            gravity,
             boost_consumption: boost,
             team_size,
             tick_skip,
@@ -181,10 +186,7 @@ impl GymWrapperRender {
             render,
             update_rate: render_speed,
         };
-        let gym = make::make(
-            make_config,
-            Some(render_config),
-        );
+        let gym = make::make(make_config, Some(render_config));
         Self { gym }
     }
 
@@ -192,7 +194,10 @@ impl GymWrapperRender {
         self.gym.reset(Some(false), seed)
     }
 
-    pub fn step(&mut self, actions: Vec<Vec<f32>>) -> (Vec<Vec<f32>>, Vec<f32>, bool, HashMap<String, f32>) {
+    pub fn step(
+        &mut self,
+        actions: Vec<Vec<f32>>,
+    ) -> (Vec<Vec<f32>>, Vec<f32>, bool, HashMap<String, f32>) {
         self.gym.step(actions)
     }
 
@@ -206,11 +211,11 @@ impl GymWrapperRender {
 
 // pub trait GymWrapperTrait {
 //     fn new(
-//         team_size: i32, 
-//         gravity: f32, 
-//         boost: f32, 
-//         self_play: bool, 
-//         tick_skip: usize, 
+//         team_size: i32,
+//         gravity: f32,
+//         boost: f32,
+//         self_play: bool,
+//         tick_skip: usize,
 //         term_cond: Box<dyn TerminalCondition>,
 //         reward_fn: Box<dyn RewardFn>,
 //         obs_builder_vec: Vec<Box<dyn ObsBuilder + Send>>,
@@ -232,7 +237,14 @@ pub struct GymWrapperRust {
 
 impl GymWrapperRust {
     /// create the gym wrapper to be used (team_size: i32, tick_skip: usize)
-    pub fn new(team_size: usize, gravity: f32, boost: f32, self_play: bool, tick_skip: usize, sender: Sender<Vec<f32>>) -> Self {
+    pub fn new(
+        team_size: usize,
+        gravity: f32,
+        boost: f32,
+        self_play: bool,
+        tick_skip: usize,
+        sender: Sender<Vec<f32>>,
+    ) -> Self {
         let term_cond = Box::new(CombinedTerminalConditions::new(tick_skip));
         let reward_fn = Box::new(GatherBoostRewardBasic::new(None));
         // let mut obs_build_vec = Vec::<Box<dyn ObsBuilder>>::new();
@@ -245,7 +257,7 @@ impl GymWrapperRust {
         let act_parse = Box::new(NectoAction::new());
         let state_set = Box::new(custom_state_setters(team_size, Some(0)));
         let game_config = GameConfig {
-            gravity, 
+            gravity,
             boost_consumption: boost,
             team_size,
             tick_skip,
@@ -260,10 +272,7 @@ impl GymWrapperRust {
             action_parser: act_parse,
             state_setter: state_set,
         };
-        let gym = make::make(
-            make_config,
-            None
-        );
+        let gym = make::make(make_config, None);
         // let gym = make::make(
         //     Some(100000.),
         //     Some(tick_skip),
@@ -284,7 +293,10 @@ impl GymWrapperRust {
         self.gym.reset(Some(false), Some(0))
     }
 
-    pub fn step(&mut self, actions: Vec<Vec<f32>>) -> (Vec<Vec<f32>>, Vec<f32>, bool, HashMap<String, f32>) {
+    pub fn step(
+        &mut self,
+        actions: Vec<Vec<f32>>,
+    ) -> (Vec<Vec<f32>>, Vec<f32>, bool, HashMap<String, f32>) {
         self.gym.step(actions)
     }
 
@@ -341,7 +353,12 @@ pub enum WorkerPacket {
 // #[pymethods]
 impl GymManager {
     // #[new]
-    pub fn new(match_nums: Vec<usize>, self_plays: Vec<bool>, tick_skip: usize, reward_file_full_path: String) -> Self {
+    pub fn new(
+        match_nums: Vec<usize>,
+        self_plays: Vec<bool>,
+        tick_skip: usize,
+        reward_file_full_path: String,
+    ) -> Self {
         rocketsim_rs::init(None);
         let mut recv_vec = Vec::<Receiver<WorkerPacket>>::new();
         let mut send_vec = Vec::<Sender<ManagerPacket>>::new();
@@ -379,7 +396,18 @@ impl GymManager {
                 let recv_local: Receiver<WorkerPacket>;
                 (send_local, rx) = bounded(1);
                 (tx, recv_local) = bounded(1);
-                let thrd1 = thread::spawn(move || worker(match_num, 1., 1., self_play, tick_skip, tx, rx, reward_send_local));
+                let thrd1 = thread::spawn(move || {
+                    worker(
+                        match_num,
+                        1.,
+                        1.,
+                        self_play,
+                        tick_skip,
+                        tx,
+                        rx,
+                        reward_send_local,
+                    )
+                });
                 // curr_id += 1;
 
                 // wait for worker to send back a packet or if it never does then restart loop to try again
@@ -392,7 +420,7 @@ impl GymManager {
                         num_retries += 1;
                         if num_retries >= 10 {
                             // In case the gym has a legitimate and repeatable error, we don't want to let it repeat for infinity trying to work.
-                            // Not really necessary for RocketSim as a single error should be considered problematic unlike Rocket League where it may 
+                            // Not really necessary for RocketSim as a single error should be considered problematic unlike Rocket League where it may
                             // just simply crash for no reason.
                             panic!("hit repeat limit when trying to create gyms: {num_retries}");
                         } else {
@@ -481,11 +509,11 @@ impl GymManager {
             let data = receiver.recv().unwrap();
 
             let (obs, rew, done, info, terminal_obs) = match data {
-                WorkerPacket::StepRet { 
-                    obs, 
-                    reward, 
-                    done, 
-                    info 
+                WorkerPacket::StepRet {
+                    obs,
+                    reward,
+                    done,
+                    info,
                 } => (obs, reward, done, info, vec![None; *n_agents]),
                 WorkerPacket::StepRetDone {
                     obs,
@@ -514,7 +542,13 @@ impl GymManager {
         // let flat_obs_numpy = PyArray::from_vec2(py, &flat_obs).unwrap().to_owned();
         self.waiting = false;
 
-        (flat_obs, flat_rewards, flat_dones, flat_infos, flat_term_obs)
+        (
+            flat_obs,
+            flat_rewards,
+            flat_dones,
+            flat_infos,
+            flat_term_obs,
+        )
     }
 
     pub fn close(&mut self) {
@@ -538,7 +572,14 @@ pub fn worker(
     // launches env and then sends the reset action to a new thread since receiving a message from the plugin will be blocking,
     // waits for x seconds for thread to return the env if it is a success else tries to force close the pipe and
     // make the gym crash (which should terminate the game)
-    let mut env = GymWrapperRust::new(team_num, gravity, boost, self_play, tick_skip, reward_sender);
+    let mut env = GymWrapperRust::new(
+        team_num,
+        gravity,
+        boost,
+        self_play,
+        tick_skip,
+        reward_sender,
+    );
     send_chan.send(WorkerPacket::InitReturn).unwrap();
 
     // for cmd in rec_chan.iter() {
@@ -573,7 +614,12 @@ pub fn worker(
                         terminal_obs,
                     });
                 } else {
-                    out = send_chan.send(WorkerPacket::StepRet { obs, reward, done, info });
+                    out = send_chan.send(WorkerPacket::StepRet {
+                        obs,
+                        reward,
+                        done,
+                        info,
+                    });
                 }
                 match out {
                     Ok(res) => res,
@@ -603,7 +649,11 @@ pub fn worker(
 /// write side of the logger for SB3, receives a vec of individual reward fn values
 fn file_put_worker(receiver: Receiver<Vec<f32>>, reward_file: PathBuf) {
     loop {
-        let out = OpenOptions::new().create(true).append(true).read(true).open(reward_file.as_path());
+        let out = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .read(true)
+            .open(reward_file.as_path());
 
         let file = match out {
             Err(out) => {
@@ -623,7 +673,11 @@ fn file_put_worker(receiver: Receiver<Vec<f32>>, reward_file: PathBuf) {
             let returns_local = match recv_data {
                 Ok(data) => data,
                 Err(err) => {
-                    println!("recv err in file_put_worker using reward_file {}: {}", reward_file.display(), err);
+                    println!(
+                        "recv err in file_put_worker using reward_file {}: {}",
+                        reward_file.display(),
+                        err
+                    );
                     break;
                 }
             };

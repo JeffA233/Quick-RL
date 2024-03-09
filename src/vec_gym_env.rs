@@ -2,9 +2,9 @@
 use crate::gym_lib::GymManager;
 // Vectorized version of the gym environment.
 use tch::{
-    Device, 
-    // Kind, 
-    Tensor
+    Device,
+    // Kind,
+    Tensor,
 };
 
 #[derive(Debug)]
@@ -19,11 +19,11 @@ pub struct Step {
 
 #[derive(Debug)]
 pub struct EnvConfig {
-    pub match_nums: Vec<usize>, 
-    pub gravity_nums: Vec<f32>, 
-    pub boost_nums: Vec<f32>, 
-    pub self_plays: Vec<bool>, 
-    pub tick_skip: usize, 
+    pub match_nums: Vec<usize>,
+    pub gravity_nums: Vec<f32>,
+    pub boost_nums: Vec<f32>,
+    pub self_plays: Vec<bool>,
+    pub tick_skip: usize,
     pub reward_file_name: String,
 }
 
@@ -36,12 +36,12 @@ pub struct VecGymEnv {
 
 impl VecGymEnv {
     pub fn new(
-        match_nums: Vec<usize>, 
-        // gravity_nums: Vec<f32>, 
-        // boost_nums: Vec<f32>, 
-        self_plays: Vec<bool>, 
-        tick_skip: usize, 
-        reward_file_name: String
+        match_nums: Vec<usize>,
+        // gravity_nums: Vec<f32>,
+        // boost_nums: Vec<f32>,
+        self_plays: Vec<bool>,
+        tick_skip: usize,
+        reward_file_name: String,
     ) -> VecGymEnv {
         let env = GymManager::new(match_nums, self_plays, tick_skip, reward_file_name);
         let nprocesses = env.total_agents as i64;
@@ -50,9 +50,12 @@ impl VecGymEnv {
         // advancedobs in 3s is 231
         let observation_space = 107;
         let action_space = 90;
-        let observation_space =
-            [nprocesses, observation_space];
-        VecGymEnv { env, action_space, observation_space }
+        let observation_space = [nprocesses, observation_space];
+        VecGymEnv {
+            env,
+            action_space,
+            observation_space,
+        }
     }
 
     pub fn reset(&self) -> Tensor {
@@ -92,7 +95,11 @@ impl VecGymEnv {
         // let reward = Tensor::from_slice(&rews).pin_memory(Device::Cpu).to_device_(device, Kind::Float, true, false);
         // let is_done = Tensor::from_slice(&dones).pin_memory(Device::Cpu).to_device_(device, Kind::Bool, true, false);
         // Step { obs, reward, is_done }
-        Step { obs, reward, is_done }
+        Step {
+            obs,
+            reward,
+            is_done,
+        }
     }
 
     pub fn action_space(&self) -> i64 {

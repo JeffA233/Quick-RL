@@ -8,11 +8,11 @@ use rlgym_sim_gym::RandomState;
 // use rlgym_sim_gym::state_setter::StateSetter;
 use rlgym_sim_gym::StateSetter;
 // use rlgym_sim_gym::wrappers::state_wrapper::StateWrapper;
-use rlgym_sim_gym::state_setters::wrappers::state_wrapper::StateWrapper;
 use rand::distributions::weighted::WeightedIndex;
 use rand::prelude::Distribution;
 use rand::Rng;
 use rand::{rngs::SmallRng, thread_rng, SeedableRng};
+use rlgym_sim_gym::state_setters::wrappers::state_wrapper::StateWrapper;
 
 use serde_json::from_reader;
 use std::{fs::File, io::BufReader};
@@ -33,10 +33,10 @@ pub fn custom_state_setters(team_size: usize, seed: Option<u64>) -> WeightedSamp
         // Box::new(ReplaySetter::new(replay_setter_str)),
     ];
     WeightedSampleSetter::new(
-        state_setters, 
-        // vec![0.3, 0.3, 0.15], 
+        state_setters,
+        // vec![0.3, 0.3, 0.15],
         vec![1.0],
-        seed
+        seed,
     )
 }
 
@@ -48,15 +48,26 @@ pub struct WeightedSampleSetter {
 }
 
 impl WeightedSampleSetter {
-    pub fn new(state_setters: Vec<Box<dyn StateSetter + Send>>, weights: Vec<f64>, seed: Option<u64>) -> Self {
-        assert!(state_setters.len() == weights.len(), "WeightedSampleSetter requires the argument lengths match");
+    pub fn new(
+        state_setters: Vec<Box<dyn StateSetter + Send>>,
+        weights: Vec<f64>,
+        seed: Option<u64>,
+    ) -> Self {
+        assert!(
+            state_setters.len() == weights.len(),
+            "WeightedSampleSetter requires the argument lengths match"
+        );
         let distribution = WeightedIndex::new(&weights).unwrap();
         let seed = match seed {
             Some(seed) => seed,
             None => thread_rng().gen_range(0..10000),
         };
         let rng = SmallRng::seed_from_u64(seed);
-        WeightedSampleSetter { state_setters, distribution, rng }
+        WeightedSampleSetter {
+            state_setters,
+            distribution,
+            rng,
+        }
     }
 }
 
@@ -96,7 +107,11 @@ impl ReplaySetter {
         let seed = thread_rng().gen_range(0..10000);
         // let rng = StdRng::seed_from_u64(seed);
         let rng = SmallRng::seed_from_u64(seed);
-        ReplaySetter { states, rng, margin_distance: 500. }
+        ReplaySetter {
+            states,
+            rng,
+            margin_distance: 500.,
+        }
     }
 
     fn set_cars(state_wrapper: &mut StateWrapper, state: &[f32]) {
@@ -113,23 +128,35 @@ impl ReplaySetter {
     }
 
     fn check_bounds(&self, ball_pos: Position) -> bool {
-        let dist_blue: f32 = (ball_pos - BLUE_GOAL_CENTER).into_iter().map(|val| val.abs()).sum();
+        let dist_blue: f32 = (ball_pos - BLUE_GOAL_CENTER)
+            .into_iter()
+            .map(|val| val.abs())
+            .sum();
         if dist_blue < self.margin_distance {
-            return true
+            return true;
         }
 
-        let dist_orange: f32 = (ball_pos - ORANGE_GOAL_CENTER).into_iter().map(|val| val.abs()).sum();
+        let dist_orange: f32 = (ball_pos - ORANGE_GOAL_CENTER)
+            .into_iter()
+            .map(|val| val.abs())
+            .sum();
         if dist_orange < self.margin_distance {
-            return true
+            return true;
         }
 
         false
     }
 
     fn set_ball(state_wrapper: &mut StateWrapper, data: &[f32]) {
-        state_wrapper.ball.set_pos(Some(data[0]), Some(data[1]), Some(data[2]));
-        state_wrapper.ball.set_lin_vel(Some(data[3]), Some(data[4]), Some(data[5]));
-        state_wrapper.ball.set_ang_vel(Some(data[6]), Some(data[7]), Some(data[8]));
+        state_wrapper
+            .ball
+            .set_pos(Some(data[0]), Some(data[1]), Some(data[2]));
+        state_wrapper
+            .ball
+            .set_lin_vel(Some(data[3]), Some(data[4]), Some(data[5]));
+        state_wrapper
+            .ball
+            .set_ang_vel(Some(data[6]), Some(data[7]), Some(data[8]));
     }
 }
 
@@ -148,11 +175,11 @@ impl StateSetter for ReplaySetter {
                 i += 1;
                 self.states.remove(idx);
                 if i != 100 {
-                    continue
+                    continue;
                 }
             }
             ReplaySetter::set_cars(state_wrapper, &state);
-            break
+            break;
         }
         // let state = self.states[self.rng.gen_range(0..self.states.len())].clone();
         // ReplaySetter::_set_ball(state_wrapper, &state);
