@@ -8,7 +8,7 @@ use crossbeam_channel::Sender;
 use indicatif::{MultiProgress, ProgressBar};
 // use redis::{Client, Commands};
 // use serde::{Deserialize, Serialize};
-use tch::{nn, Device, Kind, Tensor};
+use tch::{nn, Device, Kind, Tensor, no_grad_guard};
 
 use crate::{
     algorithms::common_utils::rollout_buffer::{
@@ -30,7 +30,6 @@ pub fn get_experience<T: RolloutDatabaseBackend>(
     backend: &mut T,
     nsteps: i64,
     nprocs: i64,
-    // obs_space: i64,
     device: Device,
     multi_prog_bar_total: &MultiProgress,
     total_prog_bar: &ProgressBar,
@@ -38,7 +37,6 @@ pub fn get_experience<T: RolloutDatabaseBackend>(
     act_model_config: LayerConfig,
     env: &mut VecGymEnv,
     send_local: &Sender<StepStore>,
-    // sum_rewards: &mut Tensor,
     sum_rewards: &mut [f64],
     total_rewards: &mut f64,
     total_episodes: &mut f64,
@@ -64,14 +62,16 @@ pub fn get_experience<T: RolloutDatabaseBackend>(
 
     // start of experience gather loop
     let mut s = 0;
+    let guard = no_grad_guard();
     while s < nsteps {
         total_prog_bar.inc(nprocs as u64);
         prog_bar.inc(nprocs as u64);
 
-        let (actions, log_prob) = tch::no_grad(|| act_model.get_act_prob(&obs_store, false));
+        // let (actions, log_prob) = tch::no_grad(|| act_model.get_act_prob(&obs_store, false));
+        let (actions, log_prob) = act_model.get_act_prob(&obs_store, false);
         let actions_sqz = actions
             .squeeze()
-            .to_device_(Device::Cpu, Kind::Int64, true, false);
+            .to_device_(Device::Cpu, Kind::Int16, true, false);
         let log_prob_flat = log_prob
             .squeeze()
             .to_device_(Device::Cpu, Kind::Float, true, false);
@@ -122,6 +122,7 @@ pub fn get_experience<T: RolloutDatabaseBackend>(
     }
 
     prog_bar.finish_and_clear();
+    drop(guard)
 }
 
 // TODO: maybe convert function to struct so it can generate and hold the environment by itself, though we can do this with a function anyways so meh,
