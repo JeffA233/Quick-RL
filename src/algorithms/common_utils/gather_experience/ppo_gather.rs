@@ -53,6 +53,7 @@ pub fn get_experience<T: RolloutDatabaseBackend>(
 
     let mut obs_store = Tensor::zeros([nprocs, obs_space], (Kind::Float, device));
 
+    // BUG: worker occasionally dies here
     let act_model_stream = backend.get_key_value_raw("model_data").unwrap();
     let act_model_ver = backend.get_key_value_i64("model_ver").unwrap();
 
