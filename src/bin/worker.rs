@@ -144,6 +144,18 @@ pub fn main() {
         );
     });
 
+    println!("waiting for learner");
+    // we want to check for the model data because it 
+    loop {
+        let act_struct_op = backend.get_key_value_raw("model_data");
+        match act_struct_op {
+            Ok(val) => val,
+            Err(_e) => {thread::sleep(Duration::from_secs_f32(1.)); continue}
+        };
+        break
+    }
+    println!("got model data");
+
     let act_config_data = backend.get_key_value_raw("actor_structure").unwrap();
     let flex_read = flexbuffers::Reader::get_root(act_config_data.as_slice()).unwrap();
     let act_config = LayerConfig::deserialize(flex_read).unwrap();

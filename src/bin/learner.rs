@@ -107,6 +107,9 @@ pub fn main() {
     // send config to worker
     rollout_backend.del("obs_space").unwrap();
     rollout_backend.del("act_space").unwrap();
+    // NOTE: you cannot force the worker to wait for a key to exist seemingly without doing a loop like below with the obs and act space
+    rollout_backend.del("model_data").unwrap();
+    rollout_backend.del("actor_stucture").unwrap();
     println!("waiting for worker");
     let mut obs_space;
     let act_space;
@@ -162,15 +165,12 @@ pub fn main() {
         .build(&vs_critic, config.hyperparameters.lr)
         .unwrap();
 
-    // NOTE: you cannot force the worker to wait for a key to exist seemingly without doing a loop like above with the obs and act space
-    rollout_backend.del("model_data").unwrap();
-
     rollout_backend.set_key_value_i64("model_ver", 0).unwrap();
     // use this flag to pause episode gathering if on the same PC, just testing for now
-    // we should make this toggleable probably
-    rollout_backend
-        .set_key_value_bool("gather_pause", false)
-        .unwrap();
+    // we should make this toggleable from the config probably
+    // rollout_backend
+    //     .set_key_value_bool("gather_pause", false)
+    //     .unwrap();
     let mut model_ver: i64 = 0;
 
     // send layer config to worker(s) for tch/libtorch usage
