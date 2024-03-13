@@ -47,7 +47,7 @@ use quick_rl::{
 pub fn main() {
     // NOTE:
     // rough benchmark is ~4.26 for rew by idx 150
-    // --- env setup stuff ---
+
     // I hate this path stuff but I'm not sure what's cleaner
     let mut config_path = PathBuf::new();
     config_path.push("src/config.json");
@@ -76,32 +76,6 @@ pub fn main() {
     // TL;DR 1 means it could be data from the last model theoretically and so on
     let max_model_age = config.hyperparameters.max_model_age;
 
-    // configure number of agents and gamemodes
-    let mut team_size = Vec::new();
-    team_size.extend(vec![1; config.gamemodes.num_1s]);
-    team_size.extend(vec![2; config.gamemodes.num_2s]);
-    team_size.extend(vec![3; config.gamemodes.num_3s]);
-
-    let mut self_plays = Vec::new();
-    self_plays.extend(vec![
-        false;
-        config.gamemodes.num_1s
-            - config.gamemodes.num_1s_selfplay
-    ]);
-    self_plays.extend(vec![true; config.gamemodes.num_1s_selfplay]);
-    self_plays.extend(vec![
-        false;
-        config.gamemodes.num_2s
-            - config.gamemodes.num_2s_selfplay
-    ]);
-    self_plays.extend(vec![true; config.gamemodes.num_2s_selfplay]);
-    self_plays.extend(vec![
-        false;
-        config.gamemodes.num_3s
-            - config.gamemodes.num_3s_selfplay
-    ]);
-    self_plays.extend(vec![true; config.gamemodes.num_3s_selfplay]);
-
     // make progress bar
     let prog_bar_func = |len: u64| {
         let bar = ProgressBar::new(len);
@@ -110,17 +84,6 @@ pub fn main() {
     };
     let multi_prog_bar_total = MultiProgress::new();
     let total_prog_bar = multi_prog_bar_total.add(prog_bar_func(updates as u64));
-
-    // make env
-    // let env = VecGymEnv::new(
-    //     team_size,
-    //     self_plays,
-    //     config.tick_skip,
-    //     reward_file_full_path,
-    // );
-    // println!("action space: {}", env.action_space());
-    // let obs_space = env.observation_space()[1];
-    // println!("observation space: {:?}", obs_space);
 
     // get Redis connection
     let db = config.redis.dbnum.clone();
@@ -163,9 +126,6 @@ pub fn main() {
     println!("obs space: {}", obs_space);
     println!("action space: {}", act_space);
 
-    // Create an instance of the generic RolloutBufferHost with the Redis backend
-    // let mut buffer_host = Gen::new(redis_backend);
-
     // setup actor and critic
     let vs_act = nn::VarStore::new(device);
     let vs_critic = nn::VarStore::new(device);
@@ -202,7 +162,7 @@ pub fn main() {
         .build(&vs_critic, config.hyperparameters.lr)
         .unwrap();
 
-    // trying to force worker to wait for model data
+    // NOTE: you cannot force the worker to wait for a key to exist seemingly without doing a loop like above with the obs and act space
     rollout_backend.del("model_data").unwrap();
 
     rollout_backend.set_key_value_i64("model_ver", 0).unwrap();
@@ -344,50 +304,6 @@ pub fn main() {
             &prog_bar,
         );
 
-        //         // PPO ratio
-        //         let ratio = (&action_log_probs - &old_log_probs_batch).exp().squeeze();
-        //         // print_tensor_vecf32("ratio", &ratio);
-        //         let clip_ratio = ratio.clamp(1.0 - clip_range, 1.0 + clip_range);
-        //         // print_tensor_vecf32("clip ratio", &clip_ratio);
-        //         clip_fracs.push(tch::no_grad(|| {
-        //             let est = ((&ratio - 1.).abs().greater(clip_range).to_kind(Kind::Float)).mean(Kind::Float);
-        //             f32::try_from(&est.detach().to(Device::Cpu)).unwrap()
-        //         }));
-        //         kl_divs.push(tch::no_grad(|| {
-        //             let log_ratio = &action_log_probs - &old_log_probs_batch;
-        //             // for viewing dbg values
-        //             // let act_log_prob_mean = f64::try_from(&action_log_probs.mean(Kind::Float)).unwrap();
-        //             // let old_log_probs_batch_mean = f64::try_from(&old_log_probs_batch.mean(Kind::Float)).unwrap();
-        //             // let log_ratio_mean = f64::try_from(&log_ratio.mean(Kind::Float).detach()).unwrap();
-        //             let kl = (log_ratio.exp() - 1.) - log_ratio;
-        //             // for dbg
-        //             // act_log_prob_mean;
-        //             // old_log_probs_batch_mean;
-        //             // log_ratio_mean;
-        //             f32::try_from(kl.mean(Kind::Float).detach().to(Device::Cpu)).unwrap()
-        //         }));
-
-        //         let value_loss = &vals.mse_loss(&targ_vals.squeeze(), tch::Reduction::Mean).squeeze();
-        //         let value_loss_float = f32::try_from(&value_loss.detach()).unwrap();
-        //         // dbg
-        //         // if value_loss_float > 100. {
-        //         //     let dbg = value_loss_float;
-        //         // }
-        //         val_loss.push(value_loss_float);
-
-        //         let action_loss = -((&ratio * &advs).min_other(&(&clip_ratio * &advs)).mean(Kind::Float));
-        //         let action_loss_float = f32::try_from(&action_loss.detach()).unwrap();
-        //         act_loss.push(action_loss_float);
-
-        //         // only for stats purposes at this time
-        //         let loss = value_loss + &action_loss - &dist_entropy * entropy_coef;
-
-        //         let full_act_loss = action_loss - dist_entropy * entropy_coef;
-        //         losses.push(f32::try_from(&loss.detach()).unwrap());
-        //         opt_act.backward_step_clip_norm(&full_act_loss, grad_clip);
-        //         opt_critic.backward_step_clip_norm(value_loss, grad_clip);
-        //     }
-        // }
         prog_bar.finish_and_clear();
         if update_index > 0 && update_index % 25 == 0 {
             let tot = clip_fracs.iter().sum::<f32>();
