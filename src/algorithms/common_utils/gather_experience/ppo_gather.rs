@@ -1,5 +1,5 @@
 use std::{
-    io::Cursor,
+    io::Cursor, thread, time::Duration,
     // thread,
     // time::Duration,
 };
@@ -53,8 +53,16 @@ pub fn get_experience<T: RolloutDatabaseBackend>(
 
     let mut obs_store = Tensor::zeros([nprocs, obs_space], (Kind::Float, device));
 
-    // BUG: worker occasionally dies here
-    let act_model_stream = backend.get_key_value_raw("model_data").unwrap();
+    let mut act_model_stream;
+    loop {
+        act_model_stream = backend.get_key_value_raw("model_data").unwrap();
+        if act_model_stream.is_empty() {
+            thread::sleep(Duration::from_secs_f32(1.));
+            continue;
+        }
+        break;
+    }
+    // let act_model_stream = backend.get_key_value_raw("model_data").unwrap();
     let act_model_ver = backend.get_key_value_i64("model_ver").unwrap();
 
     // load model bytes into VarStore (which then actually loads the parameters)

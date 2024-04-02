@@ -154,11 +154,12 @@ pub fn main() {
         };
         break
     }
-    println!("got model data");
 
     let act_config_data = backend.get_key_value_raw("actor_structure").unwrap();
     let flex_read = flexbuffers::Reader::get_root(act_config_data.as_slice()).unwrap();
     let act_config = LayerConfig::deserialize(flex_read).unwrap();
+
+    println!("got model data and actor structure");
 
     // misc stats stuff
     let mut sum_rewards = vec![0.; n_procs as usize];
