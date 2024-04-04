@@ -1,20 +1,7 @@
-use rlgym_sim_gym::AdvancedObs;
-use rlgym_sim_gym::MakeConfig;
-use rlgym_sim_gym::RenderConfig;
-// use rlgym_sim_gym::action_parsers;
-// use rlgym_sim_gym::common_values;
-// use rlgym_sim_gym::conditionals;
-use rlgym_sim_gym::envs::game_match::GameConfig;
-// use rlgym_sim_gym::envs;
-// use rlgym_sim_gym::gamestates;
-// use rlgym_sim_gym::gym;
-use rlgym_sim_gym::make;
-// use rlgym_sim_gym::make::RenderConfig;
-// use rlgym_sim_gym::math;
-use rlgym_sim_gym::obs_builders;
-// use rlgym_sim_gym::reward_functions;
-// use rlgym_sim_gym::sim_wrapper;
-// use rlgym_sim_gym::state_setters;
+// NOTE: This is originally just a Python wrapper around rlgym-sim-rs with the possibility of doing vectorized envs across multiple threads.
+// It has been converted to work solely in Rust. Taken from personal bot project (Matrix) using RocketSim/rlgym-sim-rs -Jeff
+
+use rlgym_sim_gym::{AdvancedObs, MakeConfig, RenderConfig, envs::game_match::GameConfig, make, obs_builders};
 
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::{
@@ -24,58 +11,18 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
-// use gamestates::game_state::GameState;
 use itertools::izip;
-// use ndarray::Dim;
-// use numpy::PyArray;
-use rocketsim_rs::{
-    self,
-    // sim::CarControls,
-    // GameState as GameState_rocketsim
-};
-// use std::collections::VecDeque;
+use rocketsim_rs;
 use std::fs::OpenOptions;
-// use std::io::ErrorKind::PermissionDenied;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
 use rlgym_sim_gym::Gym;
-// use pyo3::{
-//     prelude::*,
-//     // exceptions::PyTypeError
-// };
-// use rayon::prelude::*;
 
 use crate::gym_funcs::custom_rewards::GatherBoostRewardBasic;
-// use action_parsers::{
-//     necto_parser_2::NectoAction,
-//     // action_parser::ActionParser
-// };
 use crate::gym_funcs::necto_parser_2::NectoAction;
 use obs_builders::obs_builder::ObsBuilder;
-// use crate::gym_funcs::aspo4_array_3::AdvancedObsPadderStacker3;
-// use reward_functions::{
-//     custom_rewards::{
-//         get_custom_reward_func,
-//         get_custom_reward_func_mult_inst
-//     },
-//     // default_reward::RewardFn
-// };
-// use crate::gym_funcs::custom_rewards::{
-//     // get_custom_reward_func,
-//     // get_custom_reward_func_mult_inst,
-//     get_custom_reward_func_tester,
-// };
-// use action_parsers::discrete_act::DiscreteAction;
-// use conditionals::{
-//     custom_conditions::CombinedTerminalConditions,
-//     // terminal_condition::TerminalCondition
-// };
 use crate::gym_funcs::custom_conditions::CombinedTerminalConditions;
-// use state_setters::{
-//     custom_state_setters::custom_state_setters,
-//     // state_setter::StateSetter
-// };
 use crate::gym_funcs::custom_state_setters::custom_state_setters;
 
 /// A Python module implemented in Rust.
@@ -99,7 +46,7 @@ impl GymWrapper {
     /// create the gym wrapper to be used (team_size: i32, tick_skip: usize)
     pub fn new(team_size: usize, tick_skip: usize, seed: Option<u64>) -> Self {
         let term_cond = Box::new(CombinedTerminalConditions::new(tick_skip));
-        let reward_fn = Box::new(GatherBoostRewardBasic::new(None));
+        let reward_fn = Box::new(GatherBoostRewardBasic::new());
         let obs_build = Box::new(AdvancedObs::new());
         let obs_build_vec: Vec<Box<dyn ObsBuilder>> = vec![obs_build];
         let act_parse = Box::new(NectoAction::new());
@@ -160,7 +107,7 @@ impl GymWrapperRender {
         seed: Option<u64>,
     ) -> Self {
         let term_cond = Box::new(CombinedTerminalConditions::new(tick_skip));
-        let reward_fn = Box::new(GatherBoostRewardBasic::new(None));
+        let reward_fn = Box::new(GatherBoostRewardBasic::new());
         // let obs_build = Box::new(AdvancedObsPadderStacker3::new(None, Some(0)));
         let obs_build = Box::new(AdvancedObs::new());
         let obs_build_vec: Vec<Box<dyn ObsBuilder>> = vec![obs_build];
@@ -246,7 +193,7 @@ impl GymWrapperRust {
         sender: Sender<Vec<f32>>,
     ) -> Self {
         let term_cond = Box::new(CombinedTerminalConditions::new(tick_skip));
-        let reward_fn = Box::new(GatherBoostRewardBasic::new(None));
+        let reward_fn = Box::new(GatherBoostRewardBasic::new());
         // let mut obs_build_vec = Vec::<Box<dyn ObsBuilder>>::new();
         // for _ in 0..team_size * 2 {
         //     // obs_build_vec.push(Box::new(AdvancedObsPadderStacker3::new(None, Some(0))));
@@ -582,7 +529,6 @@ pub fn worker(
     );
     send_chan.send(WorkerPacket::InitReturn).unwrap();
 
-    // for cmd in rec_chan.iter() {
     loop {
         // simple loop that tries to recv for as long as the Manager channel is not hung up waiting for commands from the Manager
         let mut obs: Vec<Vec<f32>>;

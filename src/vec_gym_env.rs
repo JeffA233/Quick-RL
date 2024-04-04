@@ -1,6 +1,7 @@
-// use rlgym_sim_rs::GymManager;
+// NOTE: partially taken from tch-rs example but modified to work with the vectorized gym setup that is used for other rlgym-sim-rs related projects.
+// See the GymManager below for the actual vectorized envs code, this is simply a wrapper to get it work better with quick-rl.
+
 use crate::gym_lib::GymManager;
-// Vectorized version of the gym environment.
 use tch::{
     Device,
     // Kind,
@@ -12,9 +13,6 @@ pub struct Step {
     pub obs: Vec<Vec<f32>>,
     pub reward: Vec<f32>,
     pub is_done: Vec<bool>,
-    // pub obs: Tensor,
-    // pub reward: Tensor,
-    // pub is_done: Tensor,
 }
 
 #[derive(Debug)]
@@ -28,7 +26,6 @@ pub struct EnvConfig {
 }
 
 pub struct VecGymEnv {
-    // env: PyObject,
     env: GymManager,
     action_space: i64,
     observation_space: [i64; 2],
@@ -37,8 +34,6 @@ pub struct VecGymEnv {
 impl VecGymEnv {
     pub fn new(
         match_nums: Vec<usize>,
-        // gravity_nums: Vec<f32>,
-        // boost_nums: Vec<f32>,
         self_plays: Vec<bool>,
         tick_skip: usize,
         reward_file_name: String,

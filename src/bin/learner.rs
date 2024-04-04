@@ -69,6 +69,9 @@ pub fn main() {
     };
     let updates = config.hyperparameters.updates;
 
+    // set the seeds to a consistent number for testing performance,
+    // env set to 0 as well when possible, but all of this in general is still not perfectly consistent.
+    // likely could be CUDA related in addition to rocketsim
     tch::manual_seed(0);
     tch::Cuda::manual_seed_all(0);
 

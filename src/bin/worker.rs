@@ -142,7 +142,7 @@ pub fn main() {
     });
 
     println!("waiting for learner");
-    // we want to check for the model data because it 
+    // we want to wait for the learner to populate the model data here
     loop {
         let act_struct_op = backend.get_key_value_raw("model_data");
         match act_struct_op {

@@ -1,13 +1,8 @@
 use rlgym_sim_gym::common_values::{BLUE_GOAL_CENTER, ORANGE_GOAL_CENTER};
 use rlgym_sim_gym::gamestates::physics_object::Position;
 
-// use rlgym_sim_gym::default_state::DefaultState;
 use rlgym_sim_gym::DefaultState;
-// use rlgym_sim_gym::random_state::RandomState;
-use rlgym_sim_gym::RandomState;
-// use rlgym_sim_gym::state_setter::StateSetter;
 use rlgym_sim_gym::StateSetter;
-// use rlgym_sim_gym::wrappers::state_wrapper::StateWrapper;
 use rand::distributions::weighted::WeightedIndex;
 use rand::prelude::Distribution;
 use rand::Rng;
@@ -27,6 +22,8 @@ pub fn custom_state_setters(team_size: usize, seed: Option<u64>) -> WeightedSamp
     // } else {
     //     "replay_folder/ssl_3v3.zip".to_owned()
     // };
+
+    // NOTE: we want to use the default state here so as to try to force consistency for the reward performance testing.
     let state_setters: Vec<Box<dyn StateSetter + Send>> = vec![
         Box::new(DefaultState::new(seed)),
         // Box::new(RandomState::new(None, None, Some(false), seed)),
