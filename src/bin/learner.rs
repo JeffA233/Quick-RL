@@ -341,7 +341,9 @@ pub fn main() {
             total_episodes = 0.;
         }
         if update_index > 0 && update_index % 1000 == 0 {
-            // NOTE: the ValueStore doesn't seem to store the optimizer state (which seems to be bound to the optimizer itself)
+            // NOTE: the ValueStore doesn't seem to store the optimizer state (which seems to be bound to the optimizer itself).
+            // This is a problem because Adam stores moments of each parameter which will be reset after every load unless it can be saved/loaded.
+
             // if let Err(err) = vs.save(format!("trpo{update_index}.ot")) {
             //     println!("error while saving {err}")
             // }
