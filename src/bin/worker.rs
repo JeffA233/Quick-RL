@@ -16,14 +16,11 @@ use serde::Deserialize;
 use tch::Device;
 
 use quick_rl::{
-    algorithms::common_utils::{
-        gather_experience::ppo_gather::get_experience,
-        rollout_buffer::{
+    algorithms::{common_utils::rollout_buffer::{
             rollout_buffer_redis::RedisDatabaseBackend, 
             rollout_buffer_utils::RolloutDatabaseBackend, 
             rollout_buffer_worker::buffer_worker,
-        },
-    },
+        }, ppo::ppo_gather::get_experience},
     config::Configuration,
     models::ppo::default_ppo::LayerConfig,
     vec_gym_env::VecGymEnv,

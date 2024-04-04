@@ -8,7 +8,7 @@ use crossbeam_channel::Sender;
 use indicatif::{MultiProgress, ProgressBar};
 // use redis::{Client, Commands};
 // use serde::{Deserialize, Serialize};
-use tch::{nn, Device, Kind, Tensor, no_grad_guard};
+use tch::{nn::{self, VarStore}, no_grad_guard, Device, Kind, Tensor};
 
 use crate::{
     algorithms::common_utils::rollout_buffer::{
@@ -25,6 +25,24 @@ use crate::{
     },
     vec_gym_env::VecGymEnv,
 };
+
+/// loads the data from the backend into the VarStore
+pub fn load_varstore<T: RolloutDatabaseBackend>(vs: &mut VarStore, backend: &mut T) {
+    let mut act_model_stream;
+    // act_model_stream ends up being an empty instead of throwing a nil here so we must wait until actual data is here
+    loop {
+        act_model_stream = backend.get_key_value_raw("model_data").unwrap();
+        if act_model_stream.is_empty() {
+            thread::sleep(Duration::from_secs_f32(1.));
+            continue;
+        }
+        break;
+    }
+
+    // load model bytes into VarStore (which then actually loads the parameters)
+    let stream = Cursor::new(act_model_stream);
+    vs.load_from_stream(stream).unwrap();
+}
 
 pub fn get_experience<T: RolloutDatabaseBackend>(
     backend: &mut T,
@@ -53,21 +71,9 @@ pub fn get_experience<T: RolloutDatabaseBackend>(
 
     let mut obs_store = Tensor::zeros([nprocs, obs_space], (Kind::Float, device));
 
-    let mut act_model_stream;
-    loop {
-        act_model_stream = backend.get_key_value_raw("model_data").unwrap();
-        if act_model_stream.is_empty() {
-            thread::sleep(Duration::from_secs_f32(1.));
-            continue;
-        }
-        break;
-    }
-    // let act_model_stream = backend.get_key_value_raw("model_data").unwrap();
-    let act_model_ver = backend.get_key_value_i64("model_ver").unwrap();
+    load_varstore(&mut p, backend);
 
-    // load model bytes into VarStore (which then actually loads the parameters)
-    let stream = Cursor::new(act_model_stream);
-    p.load_from_stream(stream).unwrap();
+    let act_model_ver = backend.get_key_value_i64("model_ver").unwrap();
 
     // start of experience gather loop
     let mut s = 0;
@@ -76,7 +82,6 @@ pub fn get_experience<T: RolloutDatabaseBackend>(
         total_prog_bar.inc(nprocs as u64);
         prog_bar.inc(nprocs as u64);
 
-        // let (actions, log_prob) = tch::no_grad(|| act_model.get_act_prob(&obs_store, false));
         let (actions, log_prob) = act_model.get_act_prob(&obs_store, false);
         let actions_sqz = actions
             .squeeze()

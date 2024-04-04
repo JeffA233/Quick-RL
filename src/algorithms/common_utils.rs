@@ -1,6 +1,5 @@
 use tch::{Device, Kind, Tensor};
 
-pub mod gather_experience;
 pub mod rollout_buffer;
 
 pub struct GAECalc {
