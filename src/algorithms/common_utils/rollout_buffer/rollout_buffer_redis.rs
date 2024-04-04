@@ -7,8 +7,6 @@ use crate::algorithms::common_utils::rollout_buffer::rollout_buffer_utils::Exper
 
 use super::rollout_buffer_utils::RolloutDatabaseBackend;
 
-
-
 pub struct RedisDatabaseBackend {
     redis_con: Connection,
 }

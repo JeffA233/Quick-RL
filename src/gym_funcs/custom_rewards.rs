@@ -45,9 +45,7 @@ pub fn get_reward_json() -> Option<(Vec<f32>, Vec<bool>, f32)> {
 }
 
 pub fn get_rewards_and_weights() -> (Vec<Box<dyn RewardFn>>, Vec<f32>, Vec<bool>, f32) {
-    let reward_fn_vec: Vec<Box<dyn RewardFn>> = vec![
-        Box::new(GatherBoostRewardBasic::new()),
-    ];
+    let reward_fn_vec: Vec<Box<dyn RewardFn>> = vec![Box::new(GatherBoostRewardBasic::new())];
 
     // let op = get_reward_json();
     // we don't care about using the json for now, just make a simple test

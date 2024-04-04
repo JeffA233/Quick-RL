@@ -1,9 +1,16 @@
 // NOTE: This is originally just a Python wrapper around rlgym-sim-rs with the possibility of doing vectorized envs across multiple threads.
 // It has been converted to work solely in Rust. Taken from personal bot project (Matrix) using RocketSim/rlgym-sim-rs -Jeff
 
-use rlgym_sim_gym::{AdvancedObs, MakeConfig, RenderConfig, envs::game_match::GameConfig, make, obs_builders};
+use rlgym_sim_gym::{
+    envs::game_match::GameConfig, make, obs_builders, AdvancedObs, MakeConfig, RenderConfig,
+};
 
 use crossbeam_channel::{bounded, Receiver, Sender};
+use itertools::izip;
+use rocketsim_rs;
+use std::fs::OpenOptions;
+use std::io::{BufWriter, Write};
+use std::path::Path;
 use std::{
     collections::HashMap,
     iter::zip,
@@ -11,19 +18,14 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
-use itertools::izip;
-use rocketsim_rs;
-use std::fs::OpenOptions;
-use std::io::{BufWriter, Write};
-use std::path::Path;
 
 use rlgym_sim_gym::Gym;
 
+use crate::gym_funcs::custom_conditions::CombinedTerminalConditions;
 use crate::gym_funcs::custom_rewards::GatherBoostRewardBasic;
+use crate::gym_funcs::custom_state_setters::custom_state_setters;
 use crate::gym_funcs::necto_parser_2::NectoAction;
 use obs_builders::obs_builder::ObsBuilder;
-use crate::gym_funcs::custom_conditions::CombinedTerminalConditions;
-use crate::gym_funcs::custom_state_setters::custom_state_setters;
 
 /// A Python module implemented in Rust.
 // #[pymodule]

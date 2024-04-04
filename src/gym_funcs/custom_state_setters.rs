@@ -1,13 +1,13 @@
 use rlgym_sim_gym::common_values::{BLUE_GOAL_CENTER, ORANGE_GOAL_CENTER};
 use rlgym_sim_gym::gamestates::physics_object::Position;
 
-use rlgym_sim_gym::DefaultState;
-use rlgym_sim_gym::StateSetter;
 use rand::distributions::weighted::WeightedIndex;
 use rand::prelude::Distribution;
 use rand::Rng;
 use rand::{rngs::SmallRng, thread_rng, SeedableRng};
 use rlgym_sim_gym::state_setters::wrappers::state_wrapper::StateWrapper;
+use rlgym_sim_gym::DefaultState;
+use rlgym_sim_gym::StateSetter;
 
 use serde_json::from_reader;
 use std::{fs::File, io::BufReader};

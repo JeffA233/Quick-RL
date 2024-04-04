@@ -1,5 +1,7 @@
 use std::{
-    io::Cursor, thread, time::Duration,
+    io::Cursor,
+    thread,
+    time::Duration,
     // thread,
     // time::Duration,
 };
@@ -8,17 +10,15 @@ use crossbeam_channel::Sender;
 use indicatif::{MultiProgress, ProgressBar};
 // use redis::{Client, Commands};
 // use serde::{Deserialize, Serialize};
-use tch::{nn::{self, VarStore}, no_grad_guard, Device, Kind, Tensor};
+use tch::{
+    nn::{self, VarStore},
+    no_grad_guard, Device, Kind, Tensor,
+};
 
 use crate::{
     algorithms::common_utils::rollout_buffer::{
-        rollout_buffer_worker::{
-            // RolloutWorkerBackend, 
-            StepStore,
-        },
-        rollout_buffer_utils::RolloutDatabaseBackend,
+        rollout_buffer_utils::RolloutDatabaseBackend, rollout_buffer_worker::StepStore,
     },
-    
     models::{
         model_base::DiscreteActPPO,
         ppo::default_ppo::{Actor, LayerConfig},

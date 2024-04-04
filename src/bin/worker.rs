@@ -16,11 +16,13 @@ use serde::Deserialize;
 use tch::Device;
 
 use quick_rl::{
-    algorithms::{common_utils::rollout_buffer::{
-            rollout_buffer_redis::RedisDatabaseBackend, 
-            rollout_buffer_utils::RolloutDatabaseBackend, 
-            rollout_buffer_worker::buffer_worker,
-        }, ppo::ppo_gather::get_experience},
+    algorithms::{
+        common_utils::rollout_buffer::{
+            rollout_buffer_redis::RedisDatabaseBackend,
+            rollout_buffer_utils::RolloutDatabaseBackend, rollout_buffer_worker::buffer_worker,
+        },
+        ppo::ppo_gather::get_experience,
+    },
     config::Configuration,
     models::ppo::default_ppo::LayerConfig,
     vec_gym_env::VecGymEnv,
@@ -147,9 +149,12 @@ pub fn main() {
         let act_struct_op = backend.get_key_value_raw("model_data");
         match act_struct_op {
             Ok(val) => val,
-            Err(_e) => {thread::sleep(Duration::from_secs_f32(1.)); continue}
+            Err(_e) => {
+                thread::sleep(Duration::from_secs_f32(1.));
+                continue;
+            }
         };
-        break
+        break;
     }
 
     let act_config_data = backend.get_key_value_raw("actor_structure").unwrap();

@@ -24,8 +24,8 @@ use quick_rl::{
         common_utils::{
             // rollout_buffer::rollout_buffer_host::RolloutBufferHost,
             rollout_buffer::{
-                rollout_buffer_redis::RedisDatabaseBackend, 
-                rollout_buffer_utils::RolloutDatabaseBackend, 
+                rollout_buffer_redis::RedisDatabaseBackend,
+                rollout_buffer_utils::RolloutDatabaseBackend,
                 // rollout_buffer_worker::buffer_worker,
             },
             GAECalc,
@@ -120,14 +120,20 @@ pub fn main() {
         let obs_space_op = rollout_backend.get_key_value_i64("obs_space");
         obs_space = match obs_space_op {
             Ok(val) => val,
-            Err(_e) => {thread::sleep(Duration::from_secs_f32(1.)); continue}
+            Err(_e) => {
+                thread::sleep(Duration::from_secs_f32(1.));
+                continue;
+            }
         };
         let act_space_op = rollout_backend.get_key_value_i64("act_space");
         act_space = match act_space_op {
             Ok(val) => val,
-            Err(_e) => {thread::sleep(Duration::from_secs_f32(1.)); continue}
+            Err(_e) => {
+                thread::sleep(Duration::from_secs_f32(1.));
+                continue;
+            }
         };
-        break
+        break;
     }
     println!("obs space: {}", obs_space);
     println!("action space: {}", act_space);
