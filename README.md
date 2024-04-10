@@ -7,7 +7,7 @@ Currently it is setup to use Redis as a means to communicate between worker(s) a
 See the [bin](https://github.com/JeffA233/Quick-RL/tree/master/src/bin) folder for the worker and learner examples.
 
 ## Documentation
-This will likely not be a strongly documented project as it does not appear to serve much of a purpose right now. If things change in the future, this still might simply serve as some place to start from or reference for us.
+This will likely not be a strongly documented project as it does not appear to serve much of a purpose right now. If things change in the future, this still might simply serve as some place to start from or reference for us. There is a minor attempt to write some documentation in the code but it is not guaranteed to be easily readable.
 
 ## Current Results
 At this time, [tch-rs](https://github.com/LaurentMazare/tch-rs) does not appear to support saving the optimizer state which will hurt agent performance if starting from checkpoints often. Additionally, it does not appear to be quite as performant overall as our optimized PyTorch/Python code during training. Because of these limitations, this will likely be put on hold to be a more feature rich reinforcement learning framework.
