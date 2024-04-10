@@ -315,10 +315,7 @@ impl GymManager {
         // let mut curr_id = 0;
 
         let (reward_send, reward_recv) = bounded(20000);
-        // let reward_file_loc = r"F:\Users\Jeffrey\AppData\Local\Temp";
-        // let reward_file_name_full = format!(r"{}\{}.txt", reward_file_loc, reward_file_name);
-        let reward_file_name_full = reward_file_full_path;
-        let reward_path = Path::new(&reward_file_name_full).to_owned();
+        let reward_path = Path::new(&reward_file_full_path).to_owned();
         // let reward_thrd = thread::spawn(move || file_put_worker(reward_recv, reward_path));
         thread::spawn(move || file_put_worker(reward_recv, reward_path));
 

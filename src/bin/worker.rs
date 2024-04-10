@@ -1,16 +1,7 @@
 use std::{env, ffi::OsString, path::PathBuf, thread, time::Duration};
 
 use crossbeam_channel::bounded;
-/* Proximal Policy Optimization (PPO) model.
-
-   Proximal Policy Optimization Algorithms, Schulman et al. 2017
-   https://arxiv.org/abs/1707.06347
-
-   See https://spinningup.openai.com/en/latest/algorithms/ppo.html for a
-   reference python implementation.
-*/
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-// use redis::{Client, Commands};
 use serde::Deserialize;
 
 use tch::Device;

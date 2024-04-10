@@ -1,13 +1,5 @@
 use std::{env, ffi::OsString, path::PathBuf, thread, time::Duration};
 
-/* Proximal Policy Optimization (PPO) model.
-
-   Proximal Policy Optimization Algorithms, Schulman et al. 2017
-   https://arxiv.org/abs/1707.06347
-
-   See https://spinningup.openai.com/en/latest/algorithms/ppo.html for a
-   reference python implementation.
-*/
 use bytebuffer::ByteBuffer;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::Serialize;

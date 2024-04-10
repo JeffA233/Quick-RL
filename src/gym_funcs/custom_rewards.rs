@@ -8,41 +8,29 @@ use rlgym_sim_gym::{
 };
 
 use rlgym_sim_gym::{
-    // combined_reward::CombinedReward,
     CombinedReward,
-    // },
-    // default_reward::RewardFn,
     RewardFn,
 };
 
-// use numpy::*;
-// use ndarray::*;
-use serde_json::from_reader;
-// use itertools::Itertools;
 use rustc_hash::FxHashMap as HashMap;
-use std::{
-    // collections::HashMap,
-    fs::*,
-    io::BufReader,
-};
 
-pub fn get_reward_json() -> Option<(Vec<f32>, Vec<bool>, f32)> {
-    let file_str = "D:\\Users\\Jeffrey\\Documents\\GitHub\\RL AI bot\\rlgym_quickstart_tutorial_bot-main\\rlgym_rust\\reward_config.json";
-    let file = File::open(file_str).unwrap();
-    // let mut zip_file = ZipArchive::new(file).unwrap();
-    // let zip_file = zip_file.by_index(0).unwrap();
-    let reader = BufReader::new(file);
-    let rew_setup: Result<(Vec<f32>, Vec<bool>, f32), serde_json::Error> = from_reader(reader);
-    match rew_setup {
-        Ok(values) => Some(values),
-        // for now we want to panic as we don't want to use internal values
-        Err(e) => panic!("err from reward func when loading json: {e}"),
-        // Err(e) => {
-        //     println!("err from reward func when loading json, rolling back to internal weights/bools: {e}");
-        //     None
-        // }
-    }
-}
+// pub fn get_reward_json() -> Option<(Vec<f32>, Vec<bool>, f32)> {
+//     let file_str = "./reward_config.json";
+//     let file = File::open(file_str).unwrap();
+//     // let mut zip_file = ZipArchive::new(file).unwrap();
+//     // let zip_file = zip_file.by_index(0).unwrap();
+//     let reader = BufReader::new(file);
+//     let rew_setup: Result<(Vec<f32>, Vec<bool>, f32), serde_json::Error> = from_reader(reader);
+//     match rew_setup {
+//         Ok(values) => Some(values),
+//         // for now we want to panic as we don't want to use internal values
+//         Err(e) => panic!("err from reward func when loading json: {e}"),
+//         // Err(e) => {
+//         //     println!("err from reward func when loading json, rolling back to internal weights/bools: {e}");
+//         //     None
+//         // }
+//     }
+// }
 
 pub fn get_rewards_and_weights() -> (Vec<Box<dyn RewardFn>>, Vec<f32>, Vec<bool>, f32) {
     let reward_fn_vec: Vec<Box<dyn RewardFn>> = vec![Box::new(GatherBoostRewardBasic::new())];
@@ -53,7 +41,7 @@ pub fn get_rewards_and_weights() -> (Vec<Box<dyn RewardFn>>, Vec<f32>, Vec<bool>
     let (weights, bools, team_spirit) = match op {
         Some(val) => val,
         None => {
-            // fall back in case of testing
+            // usually a fall back in case of testing
             // println!("Reverting to built-in rew weights");
             let team_spirit = 0.6;
 
